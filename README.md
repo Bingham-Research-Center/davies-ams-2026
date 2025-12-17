@@ -19,8 +19,6 @@ Copy `src/herbie_aqm/__init__.py` to your Herbie custom template location:
 cp src/herbie_aqm/__init__.py ~/.config/herbie/custom_template.py
 ```
 
-Or for a system-wide installation via PR to Herbie, copy to `herbie/models/aqm.py`.
-
 ## Usage
 
 ```python
@@ -79,12 +77,54 @@ The template automatically selects the correct version based on date:
 - **AQMv6**: July 20, 2021 - May 13, 2024
 - **AQMv7**: May 14, 2024 - present
 
+## Synoptic Data Fetcher
+
+A reusable script for fetching observation data from the Synoptic API.
+
+### Setup
+
+```bash
+pip install SynopticPy
+export SYNOPTIC_TOKEN="your_token_here"
+```
+
+### Usage
+
+Edit `fetch_synoptic.py` to configure:
+
+```python
+STATIONS = ['QV4', 'QRS', 'A3822', 'A1386']  # Station IDs
+VARIABLES = ['ozone_concentration', 'air_temp']
+START_DATE = '2023-02-21T00:00'
+END_DATE = '2023-02-28T23:59'
+OUTPUT_FILE = 'synoptic_data.parquet'  # or .csv
+```
+
+Then run:
+
+```bash
+python fetch_synoptic.py
+```
+
+### Common Synoptic Variables
+
+| Variable | Description |
+|----------|-------------|
+| `ozone_concentration` | Ozone (ppb) |
+| `pm_2_5_concentration` | PM2.5 (µg/m³) |
+| `air_temp` | Temperature (°C) |
+| `wind_speed` | Wind speed (m/s) |
+| `wind_direction` | Wind direction (°) |
+| `relative_humidity` | Relative humidity (%) |
+| `solar_radiation` | Solar radiation (W/m²) |
+
 ## References
 
 - [NOAA NAQFC on AWS](https://registry.opendata.aws/noaa-nws-naqfc-pds/)
 - [NCO AQM Products](https://www.nco.ncep.noaa.gov/pmb/products/aqm/)
 - [NOAA-EMC/AQM GitHub](https://github.com/NOAA-EMC/AQM)
 - [Herbie Documentation](https://herbie.readthedocs.io/)
+- [SynopticPy Documentation](https://synopticpy.readthedocs.io/)
 
 ## License
 
