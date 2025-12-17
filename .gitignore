@@ -29,3 +29,7 @@ htmlcov/
 # OS
 .DS_Store
 .claude/
+
+# Data outputs
+*.parquet
+*.csv
