@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "herbie-aqm"
+version = "0.1.0"
+description = "Herbie plugin for NOAA Air Quality Model (AQM/NAQFC) data"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Michael Davies", email = "michael.davies@usu.edu" }
+]
+keywords = ["herbie", "air quality", "AQM", "NAQFC", "CMAQ", "ozone", "PM2.5", "NOAA"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+]
+dependencies = [
+    "herbie-data>=2024.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/mdavies-usu/herbie-aqm"
+Repository = "https://github.com/mdavies-usu/herbie-aqm"
+
+# Note: Herbie doesn't use entry points. Copy the template to:
+# ~/.config/herbie/custom_template.py (local)
+# or herbie/models/aqm.py (for PR to Herbie)
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/herbie_aqm"]
