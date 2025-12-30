@@ -33,3 +33,6 @@ htmlcov/
 # Data outputs
 *.parquet
 *.csv
+
+# Local guidelines (not committed)
+.github/COMMIT_GUIDELINES.md
