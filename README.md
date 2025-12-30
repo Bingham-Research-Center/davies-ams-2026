@@ -32,7 +32,7 @@ Air-quality forecasting in Utah's Uinta Basin faces unique challenges due to com
 
 | Model | Type | Resolution | Notes |
 |-------|------|------------|-------|
-| NOAA AQM | Operational (CMAQ/GFS) | 13 km | Coarse; misses shallow cold pools |
+| NOAA AQM | Operational (CMAQ/GFS) | 13 km | Coarse resolution |
 | CLYFAR | Statistical (fuzzy-logic) | N/A | Designed for Uinta Basin |
 
 **Observations**
@@ -41,22 +41,15 @@ Air-quality forecasting in Utah's Uinta Basin faces unique challenges due to com
 - Challenge: Snow depth measurements are sparse and noisy
 
 **Case Study Results**
-- AQM underestimates winter ozone by 19-32 ppb
-- AQM captures large-scale wildfire smoke but misses small-scale winter events
-- Model skill depends on phenomenon scale vs. grid resolution
+- *TBD - pending analysis*
 
 ### Column 3: Conclusions / Future Work
 
 **Key Takeaways**
-1. 13km AQM cannot resolve shallow cold-pool-driven ozone events
-2. Same model succeeds for large-scale (wildfires), fails for small-scale (winter ozone)
-3. Sparse snow/met observations limit both NWP and AI approaches
-4. "Huge ensembles of fine resolution" are unrealistic; need targeted models
+- *TBD - pending analysis*
 
 **Future Work**
-- Improve snow-depth observation networks
-- Develop hybrid dynamical + statistical approaches
-- Expand CLYFAR validation
+- *TBD - pending analysis*
 
 ---
 
