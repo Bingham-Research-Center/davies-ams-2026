@@ -52,9 +52,27 @@ Air-quality forecasting in Utah's Uinta Basin faces unique challenges due to com
 | CLYFAR | Statistical (fuzzy-logic) | N/A | Designed for Uinta Basin |
 
 **Observations**
-- Stations: Vernal, Roosevelt, Whiterocks, Dinosaur NM, Horsepool, Castle Peak
-- Variables: Ozone concentration, air temperature, snow depth
-- Challenge: Snow depth measurements are sparse and noisy
+
+| STID | Name | Network | O₃ | Met | Snow | Radiation | NOx |
+|------|------|---------|:--:|:---:|:----:|:---------:|:---:|
+| QRS | Roosevelt | UDAQ | ✓ | ✓ | | ✓ (2021+) | ✓ (2022+) |
+| QV4 | Vernal | UDAQ | ✓ | ✓ | | ✓ (2021+) | ✓ (2022+) |
+| UTASH | Asphalt Ridge | UDOT | | ✓ | ✓ (2023+) | | |
+| UTMYT | Myton | UDOT | | ✓ | ✓ (2023+) | | |
+| COOPDSNU1 | Duchesne | COOP | | | ✓ (2016+) | | |
+| COOPDINU1 | Dinosaur NM | COOP | | | ✓ (2016+) | | |
+| COCOUTUN20 | Vernal 3.1 NW | CoCoRaHS | | | ✓ (2022+) | | |
+| UBCSP | Castle Peak | BRC | ✓ | ✓ | ✓ (2019+) | ✓ (full) | ✓ (2024+) |
+| UBRVT | Roosevelt | BRC | | ✓ | ✓ (2024+) | ✓ (full) | ✓ (2024+) |
+| UBHSP | Horsepool | BRC | ✓ | ✓ | ✓ (2016+) | ✓ (full) | ✓ (2024+) |
+| UB7ST | Seven Sisters | BRC | ✓ | ✓ | ✓ (2024+) | | |
+
+**Summary by variable:**
+- **O₃**: QRS, QV4, UBCSP, UBHSP, UB7ST
+- **Met**: QRS, QV4, UTASH, UTMYT, UBCSP, UBRVT, UBHSP, UB7ST
+- **Snow (2016+)**: COOPDSNU1, COOPDINU1, UBHSP
+- **Snow (all)**: Above + COCOUTUN20, UTASH, UTMYT, UBCSP, UBRVT, UB7ST
+- **Full radiation budget**: UBCSP, UBRVT, UBHSP
 
 **Data Quality Challenges**
 - Basin distant from NEXRAD radars (KMTX Salt Lake, KGJX Grand Junction)
