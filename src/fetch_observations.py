@@ -1,69 +1,28 @@
-#!/usr/bin/env python3
-"""
-Fetch ozone observation data from Synoptic API.
-
-Fetches hourly ozone concentration data for Basin and Wasatch Front stations
-and saves to parquet format.
-
-Usage:
-    python fetch_observations.py --start 2023-01-01 --end 2023-02-28 --output data/winter2023_ozone.parquet
-
-Requires:
-    pip install SynopticPy polars
-    export SYNOPTIC_TOKEN="your_token"  # or configure in ~/.config/SynopticPy/config.toml
-"""
-
 import argparse
-from synoptic import TimeSeries
 import polars as pl
+from synoptic import TimeSeries
+
+from stations import BASIN_STATIONS, RESEARCH_STATIONS, OZONE_STATIONS
 
 
-# Station definitions
-BASIN_STATIONS = {
-    'QRS': 'Roosevelt',
-    'QV4': 'Vernal',
-    'A1386': 'Whiterocks',
-    'A3822': 'Dinosaur NM',
-}
-
-WINDWARD_STATIONS = {
-    'QCV': 'Copperview',
-    'QLN': 'Lindon',
-    'QRP': 'Rose Park',
-}
-
-
-def fetch_ozone_data(start: str, end: str, stations: list[str] = None) -> pl.DataFrame:
-    """
-    Fetch ozone concentration data from Synoptic API.
-
-    Args:
-        start: Start datetime string (e.g., '2023-01-01' or '2023-01-01T06:00')
-        end: End datetime string
-        stations: List of station IDs. If None, uses all Basin + Windward stations.
-
-    Returns:
-        Polars DataFrame with ozone observations
-    """
+def fetch_ozone_data(start: str, end: str, stations: list[str] | None = None) -> pl.DataFrame:
     if stations is None:
-        stations = list(BASIN_STATIONS.keys()) + list(WINDWARD_STATIONS.keys())
+        stations = list(OZONE_STATIONS.keys())
 
-    print(f"Fetching ozone data for {len(stations)} stations...")
+    print(f"Fetching ozone data...")
     print(f"  Period: {start} to {end}")
+    print(f"  Stations: {len(stations)}")
 
-    df = TimeSeries(
-        stid=stations,
-        start=start,
-        end=end,
-        vars=['ozone_concentration'],
-    ).df()
+    df = TimeSeries(stid=stations, start=start, end=end, vars=['ozone_concentration']).df()
 
-    # Add region label
     basin_ids = list(BASIN_STATIONS.keys())
+    research_ids = list(RESEARCH_STATIONS.keys())
     df = df.with_columns([
         pl.when(pl.col('stid').is_in(basin_ids))
         .then(pl.lit('Basin'))
-        .otherwise(pl.lit('Windward'))
+        .when(pl.col('stid').is_in(research_ids))
+        .then(pl.lit('Research'))
+        .otherwise(pl.lit('Other'))
         .alias('region')
     ])
 
@@ -71,24 +30,17 @@ def fetch_ozone_data(start: str, end: str, stations: list[str] = None) -> pl.Dat
     return df
 
 
-def main():
-    parser = argparse.ArgumentParser(description='Fetch ozone data from Synoptic API')
-    parser.add_argument('--start', required=True, help='Start date (YYYY-MM-DD)')
-    parser.add_argument('--end', required=True, help='End date (YYYY-MM-DD)')
-    parser.add_argument('--output', required=True, help='Output parquet file path')
-    parser.add_argument('--basin-only', action='store_true', help='Only fetch Basin stations')
-
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--start', required=True)
+    parser.add_argument('--end', required=True)
+    parser.add_argument('--output', required=True)
     args = parser.parse_args()
 
-    stations = list(BASIN_STATIONS.keys()) if args.basin_only else None
-
-    df = fetch_ozone_data(args.start, args.end, stations)
-
-    # Save to parquet
+    df = fetch_ozone_data(args.start, args.end)
     df.write_parquet(args.output)
     print(f"Saved to {args.output}")
 
-    # Print summary
     ozone = df.filter(df['variable'] == 'ozone_concentration')
     print("\nSummary by station:")
     summary = ozone.group_by(['stid', 'name', 'region']).agg([

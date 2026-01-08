@@ -33,6 +33,8 @@ htmlcov/
 # Data outputs
 *.parquet
 *.csv
+data/
+brc_data/
 
 # Local guidelines (not committed)
 .github/COMMIT_GUIDELINES.md
