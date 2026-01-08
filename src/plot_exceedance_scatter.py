@@ -75,25 +75,22 @@ def main():
                c='orange', marker='s', s=60, edgecolors='black', linewidths=0.8,
                label=f'False Alarms (n={len(false_alarms)})', zorder=3)
 
-    # Quadrant labels
-    ax.text(100, 88, 'Hits', fontsize=12, fontweight='bold', color='darkgreen',
-            ha='center', va='center', zorder=2)
-    ax.text(52, 88, 'False\nAlarms', fontsize=12, fontweight='bold', color='darkorange',
-            ha='center', va='center', zorder=2)
-    ax.text(100, 52, 'Misses', fontsize=12, fontweight='bold', color='darkred',
-            ha='center', va='center', zorder=2)
-
     # Labels and title
     ax.set_xlabel('Observed 8-hour Max Ozone (ppb)', fontsize=12)
     ax.set_ylabel('AQM Predicted 8-hour Max Ozone (ppb)', fontsize=12)
     fig.suptitle('Individual Exceedance Events', fontsize=14, fontweight='bold', y=0.98)
     ax.set_title('AQM vs Observed (70 ppb threshold)', fontsize=11, pad=10)
 
-    # Legend
-    ax.legend(loc='lower right', fontsize=10, framealpha=0.9)
-
     # Grid
     ax.grid(True, alpha=0.3, zorder=0)
+
+    # Adjust layout for bottom legend
+    plt.subplots_adjust(bottom=0.15)
+
+    # Legend below plot
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, loc='lower center', ncol=4, fontsize=10,
+               framealpha=0.9, bbox_to_anchor=(0.5, 0.02))
 
     # Save figure
     OUTPUT_DIR.mkdir(exist_ok=True)
