@@ -294,6 +294,17 @@ def main():
     # Grid
     ax.grid(True, alpha=0.3, zorder=0)
 
+    # Corner labels explaining what each corner represents
+    corner_style = dict(fontsize=9, ha='center', va='center',
+                        bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
+                                  edgecolor='gray', alpha=0.9))
+    ax.text(-0.08, 1.08, 'Overforecast\n(All False Alarms)',
+            transform=ax.transData, **corner_style)
+    ax.text(1.0, -0.08, 'Underforecast\n(All Misses)',
+            transform=ax.transData, **corner_style)
+    ax.text(-0.08, -0.08, 'No Skill',
+            transform=ax.transData, **corner_style)
+
     # Season legend (upper left)
     ax.legend(loc='upper left', fontsize=9, framealpha=0.9, ncol=2)
 
