@@ -50,15 +50,13 @@ def main() -> None:
     print(f"Fetching Uinta Basin stations: {stations}")
     print(f"Fetching {len(args.winters)} winter seasons: {args.winters}")
 
-    results = {}
     for winter in sorted(args.winters):
-        obs_path, aqm_path = fetch_winter(winter, args.data_dir, stations=stations)
-        results[winter] = {'obs': obs_path, 'aqm': aqm_path}
+        fetch_winter(winter, args.data_dir, stations=stations)
 
     print(f"\n{'='*60}")
     print("FETCH COMPLETE")
     print('='*60)
-    for winter, paths in results.items():
+    for winter in sorted(args.winters):
         print(f"  {winter}: Obs OK  AQM OK")
 
 

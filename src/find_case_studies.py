@@ -246,7 +246,7 @@ def print_gfs_comparison(cases: list[tuple[str, date]]) -> None:
 def print_event_evolution(df: pl.DataFrame, start_date: date, end_date: date) -> None:
     """Print AQM error evolution over a multi-day event."""
     print('\n' + '=' * 65)
-    print('AQM ERROR EVOLUTION (Feb 2023 Event)')
+    print(f'AQM ERROR EVOLUTION ({start_date} to {end_date})')
     print('=' * 65)
     print(f'{"Date":<12} {"Mean Obs":>10} {"Mean AQM":>10} {"Mean Bias":>12} {"Phase":<12}')
     print('-' * 65)

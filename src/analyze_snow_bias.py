@@ -26,7 +26,7 @@ def aggregate_daily_snow(df: pl.DataFrame) -> pl.DataFrame:
     Aggregate sub-hourly/hourly snow to daily values per station.
 
     Uses median to be robust against sensor outliers.
-    Value is already in cm (Synoptic API returns cm for snow_depth).
+    Synoptic API returns mm for snow_depth.
     """
     df = df.with_columns([
         pl.col('date_time').dt.date().alias('date')
