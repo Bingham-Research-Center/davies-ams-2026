@@ -145,6 +145,15 @@ def main():
                 color='red', alpha=0.8, linewidth=1.5,
                 transform=ccrs.PlateCarree(), zorder=4)
 
+    # Scale bar (upper-left, showing 13 km = one grid cell)
+    scale_lon = LON_MIN + 0.15
+    scale_lat = LAT_MAX - 0.15
+    ax.plot([scale_lon, scale_lon + GRID_DEG_LON], [scale_lat, scale_lat],
+            color='black', linewidth=4, transform=ccrs.PlateCarree(), zorder=10)
+    ax.text(scale_lon + GRID_DEG_LON / 2, scale_lat - 0.05, '13 km',
+            ha='center', fontsize=10, fontweight='bold',
+            transform=ccrs.PlateCarree(), zorder=10)
+
     # Basin outline
     basin_gdf = get_basin_boundary()
     basin_feature = ShapelyFeature(
@@ -201,9 +210,16 @@ def main():
     gl.xlabel_style = {'fontsize': 10}
     gl.ylabel_style = {'fontsize': 10}
 
+    # Grid cell count annotation (lower-left)
+    ax.text(0.02, 0.02, 'Basin floor: ~6 grid cells east-west',
+            transform=ax.transAxes, fontsize=11, fontweight='bold',
+            verticalalignment='bottom',
+            bbox=dict(facecolor='white', edgecolor='gray', alpha=0.9,
+                      boxstyle='round,pad=0.4'), zorder=20)
+
     # Title
     ax.set_title(
-        'AQM Resolution vs. Basin Scale\nUinta Basin Ozone Monitoring Network',
+        'AQM 13 km Grid vs. Basin Scale',
         fontsize=14, fontweight='bold', pad=10
     )
 

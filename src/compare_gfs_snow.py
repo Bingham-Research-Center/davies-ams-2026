@@ -267,7 +267,7 @@ def create_scatter_plot(df: pl.DataFrame) -> None:
     pct_under = np.sum(error < 0) / len(error) * 100
 
     # Create figure
-    fig, ax = plt.subplots(figsize=(8, 8))
+    fig, ax = plt.subplots(figsize=(12, 10))
 
     # Scatter plot
     ax.scatter(obs, gfs, alpha=0.4, s=30, c='steelblue', edgecolors='none')
