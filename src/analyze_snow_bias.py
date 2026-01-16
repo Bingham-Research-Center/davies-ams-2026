@@ -12,6 +12,9 @@ import numpy as np
 import polars as pl
 from scipy import stats
 
+from verification_metrics import THRESHOLD
+from report_writer import create_report
+
 # Paths
 DATA_DIR = Path(__file__).parent.parent / 'data'
 OUTPUT_DIR = Path(__file__).parent.parent / 'figures'
@@ -106,8 +109,8 @@ def merge_snow_with_aqm(snow_df: pl.DataFrame, aqm_df: pl.DataFrame) -> tuple[pl
     # Join on date
     all_days = aqm_df.join(snow_df, on='date', how='inner')
 
-    # Filter to exceedance days only (obs >= 70 ppb)
-    exceedance_only = all_days.filter(pl.col('obs_mda8') >= 70)
+    # Filter to exceedance days only (obs >= THRESHOLD ppb)
+    exceedance_only = all_days.filter(pl.col('obs_mda8') >= THRESHOLD)
 
     return all_days, exceedance_only
 
@@ -120,7 +123,7 @@ def create_scatter_plot(all_days: pl.DataFrame, exceedance: pl.DataFrame) -> Non
 
     datasets = [
         (all_days, 'All Days', axes[0]),
-        (exceedance, 'Exceedance Days (Obs >= 70 ppb)', axes[1])
+        (exceedance, f'Exceedance Days (Obs >= {THRESHOLD} ppb)', axes[1])
     ]
 
     for df, title, ax in datasets:
@@ -176,7 +179,7 @@ def create_binned_plot(all_days: pl.DataFrame, exceedance: pl.DataFrame) -> None
 
     datasets = [
         (all_days, 'All Days', axes[0]),
-        (exceedance, 'Exceedance Days (Obs >= 70 ppb)', axes[1])
+        (exceedance, f'Exceedance Days (Obs >= {THRESHOLD} ppb)', axes[1])
     ]
 
     for df, title, ax in datasets:
@@ -260,6 +263,47 @@ def create_binned_plot(all_days: pl.DataFrame, exceedance: pl.DataFrame) -> None
     plt.close(fig)
 
 
+def get_summary_stats(df: pl.DataFrame) -> dict:
+    """Get summary statistics as a dictionary."""
+    n_total = len(df)
+    n_days = df['date'].n_unique()
+    snow = df['basin_avg_snow_cm']
+    bias = df['bias']
+
+    return {
+        'n_total': n_total,
+        'n_days': n_days,
+        'snow_mean': snow.mean(),
+        'snow_median': snow.median(),
+        'snow_std': snow.std(),
+        'snow_min': snow.min(),
+        'snow_max': snow.max(),
+        'bias_mean': bias.mean(),
+        'bias_median': bias.median(),
+        'bias_std': bias.std(),
+        'bias_min': bias.min(),
+        'bias_max': bias.max(),
+    }
+
+
+def get_regression_stats(df: pl.DataFrame) -> dict:
+    """Calculate regression statistics between snow and bias."""
+    snow = df['basin_avg_snow_cm'].to_numpy()
+    bias = df['bias'].to_numpy()
+    mask = ~np.isnan(snow) & ~np.isnan(bias)
+    snow = snow[mask]
+    bias = bias[mask]
+    slope, intercept, r_value, p_value, std_err = stats.linregress(snow, bias)
+    return {
+        'slope': slope,
+        'intercept': intercept,
+        'r_value': r_value,
+        'p_value': p_value,
+        'std_err': std_err,
+        'n': len(snow)
+    }
+
+
 def print_summary_statistics(df: pl.DataFrame) -> None:
     """Print summary statistics to console."""
     print('\n' + '='*60)
@@ -291,6 +335,75 @@ def print_summary_statistics(df: pl.DataFrame) -> None:
     print(f'  Std: {bias.std():.2f}')
     print(f'  Min: {bias.min():.2f}')
     print(f'  Max: {bias.max():.2f}')
+
+
+def write_report(all_days: pl.DataFrame, exceedance: pl.DataFrame) -> None:
+    """Write snow bias analysis to markdown report."""
+    report = create_report('snow_bias_analysis.md')
+    report.add_title('Snow Depth vs AQM Bias Analysis')
+
+    # All Days section
+    report.add_section('All Days Analysis')
+    all_stats = get_summary_stats(all_days)
+    all_reg = get_regression_stats(all_days)
+
+    report.add_section('Dataset Size', level=3)
+    report.add_key_value('Total records', f'{all_stats["n_total"]:,}')
+    report.add_key_value('Unique days', str(all_stats['n_days']))
+    report.add_text('')
+
+    report.add_section('Snow Depth Statistics (cm)', level=3)
+    report.add_key_value('Mean', f'{all_stats["snow_mean"]:.2f}')
+    report.add_key_value('Median', f'{all_stats["snow_median"]:.2f}')
+    report.add_key_value('Std', f'{all_stats["snow_std"]:.2f}')
+    report.add_key_value('Range', f'{all_stats["snow_min"]:.2f} - {all_stats["snow_max"]:.2f}')
+    report.add_text('')
+
+    report.add_section('Bias Statistics (ppb)', level=3)
+    report.add_key_value('Mean', f'{all_stats["bias_mean"]:.2f}')
+    report.add_key_value('Median', f'{all_stats["bias_median"]:.2f}')
+    report.add_key_value('Std', f'{all_stats["bias_std"]:.2f}')
+    report.add_key_value('Range', f'{all_stats["bias_min"]:.2f} - {all_stats["bias_max"]:.2f}')
+    report.add_text('')
+
+    report.add_section('Regression Results', level=3)
+    report.add_key_value('Correlation (r)', f'{all_reg["r_value"]:.3f}')
+    report.add_key_value('Slope', f'{all_reg["slope"]:.4f}')
+    report.add_key_value('Intercept', f'{all_reg["intercept"]:.2f}')
+    report.add_key_value('P-value', f'{all_reg["p_value"]:.4f}')
+    report.add_text('')
+
+    # Exceedance Days section
+    report.add_section('Exceedance Days Analysis')
+    exc_stats = get_summary_stats(exceedance)
+    exc_reg = get_regression_stats(exceedance)
+
+    report.add_section('Dataset Size', level=3)
+    report.add_key_value('Total records', f'{exc_stats["n_total"]:,}')
+    report.add_key_value('Unique days', str(exc_stats['n_days']))
+    report.add_text('')
+
+    report.add_section('Snow Depth Statistics (cm)', level=3)
+    report.add_key_value('Mean', f'{exc_stats["snow_mean"]:.2f}')
+    report.add_key_value('Median', f'{exc_stats["snow_median"]:.2f}')
+    report.add_key_value('Std', f'{exc_stats["snow_std"]:.2f}')
+    report.add_key_value('Range', f'{exc_stats["snow_min"]:.2f} - {exc_stats["snow_max"]:.2f}')
+    report.add_text('')
+
+    report.add_section('Bias Statistics (ppb)', level=3)
+    report.add_key_value('Mean', f'{exc_stats["bias_mean"]:.2f}')
+    report.add_key_value('Median', f'{exc_stats["bias_median"]:.2f}')
+    report.add_key_value('Std', f'{exc_stats["bias_std"]:.2f}')
+    report.add_key_value('Range', f'{exc_stats["bias_min"]:.2f} - {exc_stats["bias_max"]:.2f}')
+    report.add_text('')
+
+    report.add_section('Regression Results', level=3)
+    report.add_key_value('Correlation (r)', f'{exc_reg["r_value"]:.3f}')
+    report.add_key_value('Slope', f'{exc_reg["slope"]:.4f}')
+    report.add_key_value('Intercept', f'{exc_reg["intercept"]:.2f}')
+    report.add_key_value('P-value', f'{exc_reg["p_value"]:.4f}')
+
+    report.save()
 
 
 def main():
@@ -325,6 +438,9 @@ def main():
     print('\n[4/4] Creating visualizations...')
     create_scatter_plot(all_days, exceedance)
     create_binned_plot(all_days, exceedance)
+
+    # Write markdown report
+    write_report(all_days, exceedance)
 
     print('\nDone!')
 

@@ -15,44 +15,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
+from verification_metrics import (
+    THRESHOLD,
+    VerificationMetrics,
+    calculate_contingency_counts,
+    bootstrap_pod_difference,
+)
+from report_writer import create_report
+
 # Paths
 DATA_DIR = Path(__file__).parent.parent / 'data'
 OUTPUT_DIR = Path(__file__).parent.parent / 'figures'
 AQM_DATA_PATH = DATA_DIR / 'all_matched_obs_aqm.parquet'
-
-# Threshold
-THRESHOLD = 70  # NAAQS ozone exceedance (ppb)
-
-
-@dataclass
-class VerificationMetrics:
-    """Container for forecast verification metrics."""
-    name: str
-    hits: int
-    misses: int
-    false_alarms: int
-    correct_negatives: int
-    bias: float
-    rmse: float
-    n_total: int
-
-    @property
-    def pod(self) -> float:
-        """Probability of Detection."""
-        denom = self.hits + self.misses
-        return self.hits / denom if denom > 0 else 0.0
-
-    @property
-    def far(self) -> float:
-        """False Alarm Ratio."""
-        denom = self.hits + self.false_alarms
-        return self.false_alarms / denom if denom > 0 else 0.0
-
-    @property
-    def csi(self) -> float:
-        """Critical Success Index."""
-        denom = self.hits + self.misses + self.false_alarms
-        return self.hits / denom if denom > 0 else 0.0
 
 
 @dataclass
@@ -83,39 +57,41 @@ def create_baseline_forecasts(df: pl.DataFrame) -> pl.DataFrame:
         pl.col('obs_mda8').shift(1).over('stid').alias('persistence')
     ])
 
-    # Extract month for climatology
+    # Extract month and year for climatology
     df = df.with_columns([
-        pl.col('date').dt.month().alias('month')
+        pl.col('date').dt.month().alias('month'),
+        pl.col('date').dt.year().alias('year')
     ])
 
-    # Climatology: mean observation by month and station
-    climatology = df.group_by(['stid', 'month']).agg([
-        pl.col('obs_mda8').mean().alias('climatology')
-    ])
+    # Leave-one-year-out climatology: use mean from OTHER years only
+    climatology_dfs = []
+    for year in df['year'].unique().sort().to_list():
+        other_years = df.filter(pl.col('year') != year)
+        clim = other_years.group_by(['stid', 'month']).agg([
+            pl.col('obs_mda8').mean().alias('climatology')
+        ])
+        clim = clim.with_columns(pl.lit(year).alias('year'))
+        climatology_dfs.append(clim)
 
-    # Join climatology back
-    df = df.join(climatology, on=['stid', 'month'], how='left')
+    climatology_df = pl.concat(climatology_dfs)
+    df = df.join(climatology_df, on=['stid', 'month', 'year'], how='left')
+    df = df.drop('year')
 
     return df
 
 
 def flag_event_phases(df: pl.DataFrame) -> pl.DataFrame:
     """Flag onset and continuation days for exceedance events."""
-    # Previous day observation (already computed as persistence)
-    df = df.with_columns([
-        pl.col('persistence').alias('prev_obs')
-    ])
-
     # Onset: first day of exceedance (obs >= 70 AND prev < 70)
     # Continuation: subsequent days (obs >= 70 AND prev >= 70)
     df = df.with_columns([
         (
             (pl.col('obs_mda8') >= THRESHOLD) &
-            ((pl.col('prev_obs') < THRESHOLD) | pl.col('prev_obs').is_null())
+            ((pl.col('persistence') < THRESHOLD) | pl.col('persistence').is_null())
         ).alias('is_onset'),
         (
             (pl.col('obs_mda8') >= THRESHOLD) &
-            (pl.col('prev_obs') >= THRESHOLD)
+            (pl.col('persistence') >= THRESHOLD)
         ).alias('is_continuation'),
     ])
 
@@ -127,29 +103,17 @@ def calculate_metrics(df: pl.DataFrame, fcst_col: str, name: str) -> Verificatio
     # Filter to rows with valid forecast values
     valid = df.filter(pl.col(fcst_col).is_not_null())
 
-    # Categorical counts
-    hits = valid.filter(
-        (pl.col('obs_mda8') >= THRESHOLD) & (pl.col(fcst_col) >= THRESHOLD)
-    ).height
-
-    misses = valid.filter(
-        (pl.col('obs_mda8') >= THRESHOLD) & (pl.col(fcst_col) < THRESHOLD)
-    ).height
-
-    false_alarms = valid.filter(
-        (pl.col('obs_mda8') < THRESHOLD) & (pl.col(fcst_col) >= THRESHOLD)
-    ).height
-
-    correct_negatives = valid.filter(
-        (pl.col('obs_mda8') < THRESHOLD) & (pl.col(fcst_col) < THRESHOLD)
-    ).height
+    # Categorical counts using shared function
+    hits, misses, false_alarms, correct_negatives = calculate_contingency_counts(
+        valid, 'obs_mda8', fcst_col, THRESHOLD
+    )
 
     # Continuous metrics
     errors = valid.with_columns([
         (pl.col(fcst_col) - pl.col('obs_mda8')).alias('error')
     ])
 
-    bias = errors['error'].mean()
+    mean_bias = errors['error'].mean()
     rmse = np.sqrt((errors['error'] ** 2).mean())
 
     return VerificationMetrics(
@@ -158,7 +122,7 @@ def calculate_metrics(df: pl.DataFrame, fcst_col: str, name: str) -> Verificatio
         misses=misses,
         false_alarms=false_alarms,
         correct_negatives=correct_negatives,
-        bias=bias,
+        mean_bias=mean_bias,
         rmse=rmse,
         n_total=valid.height
     )
@@ -188,6 +152,37 @@ def calculate_stratified_pod(df: pl.DataFrame, fcst_col: str, name: str) -> Stra
     )
 
 
+def calculate_metrics_by_lead_time(
+    df: pl.DataFrame,
+    fcst_col: str,
+    name: str,
+    lead_time_bins: list[tuple[int, int]] = [(0, 24), (24, 48), (48, 72)]
+) -> list[VerificationMetrics]:
+    """
+    Calculate metrics stratified by lead time.
+
+    NOTE: Requires 'lead_time' column from upstream data pipeline changes.
+    Current data uses fxx=0 only. To enable:
+    - Modify fetch_aqm.py to fetch multiple fxx values (0, 24, 48)
+    - Add lead_time column to matched data
+    """
+    if 'lead_time' not in df.columns:
+        print('  Note: Lead-time stratification requires upstream data changes.')
+        return []
+
+    metrics_by_lead = []
+    for start_hr, end_hr in lead_time_bins:
+        subset = df.filter(
+            (pl.col('lead_time') >= start_hr) &
+            (pl.col('lead_time') < end_hr)
+        )
+        if len(subset) > 0:
+            metrics = calculate_metrics(subset, fcst_col, f'{name} ({start_hr}-{end_hr}h)')
+            metrics_by_lead.append(metrics)
+
+    return metrics_by_lead
+
+
 def print_overall_table(metrics_list: list[VerificationMetrics]) -> None:
     """Print overall comparison table."""
     print('\n' + '='*80)
@@ -198,7 +193,7 @@ def print_overall_table(metrics_list: list[VerificationMetrics]) -> None:
     print('-'*80)
 
     for m in metrics_list:
-        print(f'{m.name:<15} {m.pod:>8.1%} {m.far:>8.1%} {m.csi:>8.1%} {m.bias:>+10.2f} {m.rmse:>10.2f} {m.n_total:>8}')
+        print(f'{m.name:<15} {m.pod:>8.1%} {m.far:>8.1%} {m.csi:>8.1%} {m.mean_bias:>+10.2f} {m.rmse:>10.2f} {m.n_total:>8}')
 
     print('-'*80)
 
@@ -257,6 +252,102 @@ def print_interpretation(metrics_list: list[VerificationMetrics],
     print(f'   - AQM continuation POD: {aqm_strat.continuation_pod:.1%}')
     print(f'   - Persistence continuation POD: {pers_strat.continuation_pod:.1%}')
     print('   (High continuation POD is less impressive - yesterday predicts today)')
+
+    print('\n4. SKILL SCORES (vs persistence):')
+    csi_skill = aqm.skill_score(persistence, 'csi')
+    pod_skill = aqm.skill_score(persistence, 'pod')
+    print(f'   - CSI skill: {csi_skill:.3f}')
+    print(f'   - POD skill: {pod_skill:.3f}')
+
+
+def write_report(
+    metrics_list: list[VerificationMetrics],
+    strat_list: list[StratifiedPOD],
+    boot_results: dict
+) -> None:
+    """Write analysis results to markdown report."""
+    report = create_report('baseline_comparison.md')
+    report.add_title('Baseline Comparison Analysis')
+
+    # Overall Model Comparison table
+    report.add_section('Overall Model Comparison')
+    headers = ['Model', 'POD', 'FAR', 'CSI', 'Bias', 'RMSE', 'n']
+    rows = []
+    for m in metrics_list:
+        rows.append([
+            m.name,
+            f'{m.pod:.1%}',
+            f'{m.far:.1%}',
+            f'{m.csi:.1%}',
+            f'{m.mean_bias:+.2f}',
+            f'{m.rmse:.2f}',
+            str(m.n_total)
+        ])
+    report.add_table(headers, rows)
+
+    # POD by Event Phase table
+    report.add_section('POD by Event Phase')
+    headers = ['Model', 'Onset POD', 'Continuation POD', 'n Onset', 'n Cont.']
+    rows = []
+    for s in strat_list:
+        rows.append([
+            s.name,
+            f'{s.onset_pod:.1%}',
+            f'{s.continuation_pod:.1%}',
+            str(s.onset_total),
+            str(s.continuation_total)
+        ])
+    report.add_table(headers, rows)
+
+    # Bootstrap Confidence Interval
+    report.add_section('Bootstrap Confidence Interval')
+    report.add_key_value('AQM vs Persistence POD Difference', f'{boot_results["pod_diff"]:.1%}')
+    report.add_key_value('95% CI', f'[{boot_results["ci_lower"]:.1%}, {boot_results["ci_upper"]:.1%}]')
+    report.add_key_value('P-value', f'{boot_results["p_value"]:.3f}')
+    report.add_text('')
+
+    # Interpretation
+    report.add_section('Interpretation')
+
+    # Find metrics by name
+    aqm = next(m for m in metrics_list if m.name == 'AQM')
+    persistence = next(m for m in metrics_list if m.name == 'Persistence')
+    aqm_strat = next(s for s in strat_list if s.name == 'AQM')
+    pers_strat = next(s for s in strat_list if s.name == 'Persistence')
+
+    # Onset Detection
+    report.add_section('Onset Detection', level=3)
+    report.add_key_value('AQM onset POD', f'{aqm_strat.onset_pod:.1%}')
+    report.add_key_value('Persistence onset POD', f'{pers_strat.onset_pod:.1%}')
+    if aqm_strat.onset_pod < 0.10:
+        assessment = 'AQM provides essentially NO advance warning of onset'
+    elif aqm_strat.onset_pod < 0.30:
+        assessment = 'AQM provides MARGINAL advance warning'
+    else:
+        assessment = 'AQM provides MEANINGFUL advance warning'
+    report.add_key_value('Assessment', assessment)
+    report.add_text('')
+
+    # Overall Performance
+    report.add_section('Overall Performance', level=3)
+    report.add_key_value('AQM overall POD', f'{aqm.pod:.1%}')
+    report.add_key_value('Persistence overall POD', f'{persistence.pod:.1%}')
+    if aqm.pod <= persistence.pod:
+        assessment = 'AQM adds NO VALUE over simple persistence'
+    else:
+        improvement = aqm.pod - persistence.pod
+        assessment = f'AQM improves over persistence by {improvement:.1%} points'
+    report.add_key_value('Assessment', assessment)
+    report.add_text('')
+
+    # Skill Scores
+    report.add_section('Skill Scores (vs Persistence)', level=3)
+    csi_skill = aqm.skill_score(persistence, 'csi')
+    pod_skill = aqm.skill_score(persistence, 'pod')
+    report.add_key_value('CSI skill', f'{csi_skill:.3f}')
+    report.add_key_value('POD skill', f'{pod_skill:.3f}')
+
+    report.save()
 
 
 def plot_comparison(metrics_list: list[VerificationMetrics],
@@ -402,6 +493,12 @@ def main():
         strat_list.append(strat)
         print(f'  {name}: POD={metrics.pod:.1%}, Onset POD={strat.onset_pod:.1%}')
 
+    # Bootstrap confidence interval
+    print('\n  Bootstrap CI for AQM vs Persistence POD:')
+    boot = bootstrap_pod_difference(df, 'aqm_max', 'persistence')
+    print(f'    Difference: {boot["pod_diff"]:.1%} [{boot["ci_lower"]:.1%}, {boot["ci_upper"]:.1%}]')
+    print(f'    P-value: {boot["p_value"]:.3f}')
+
     # Print tables
     print_overall_table(metrics_list)
     print_stratified_table(strat_list)
@@ -410,6 +507,9 @@ def main():
     # Create visualization
     print('\n[5/5] Creating comparison figure...')
     plot_comparison(metrics_list, strat_list)
+
+    # Write markdown report
+    write_report(metrics_list, strat_list, boot)
 
     print('\nDone!')
 

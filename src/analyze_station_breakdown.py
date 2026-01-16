@@ -11,14 +11,17 @@ import numpy as np
 import polars as pl
 
 from stations import ALL_STATIONS
+from verification_metrics import THRESHOLD, bootstrap_pod_ci
+from report_writer import create_report
 
 # Paths
 DATA_DIR = Path(__file__).parent.parent / 'data'
 OUTPUT_DIR = Path(__file__).parent.parent / 'figures'
 AQM_DATA_PATH = DATA_DIR / 'all_matched_obs_aqm.parquet'
 
-# Threshold
-THRESHOLD = 70  # NAAQS ozone exceedance (ppb)
+# Longitude dividing western (UBCSP, QRS) from eastern (UBHSP, QV4, UB7ST) basin
+# Based on geographic midpoint of monitoring network
+BASIN_SPLIT_LON = -109.8
 
 # Station order from west to east for visualization
 STATION_ORDER = ['UBCSP', 'QRS', 'UBHSP', 'QV4', 'UB7ST']
@@ -47,10 +50,14 @@ def calculate_station_metrics(df: pl.DataFrame) -> pl.DataFrame:
         pl.col('is_hit').sum().alias('hits'),
     ])
 
-    # Calculate POD and miss rate
+    # Calculate POD and miss rate with safe division (0 when no exceedances)
     metrics = metrics.with_columns([
-        (pl.col('hits') / pl.col('n_exceedance')).alias('pod'),
-        (1 - pl.col('hits') / pl.col('n_exceedance')).alias('miss_rate'),
+        (pl.when(pl.col('n_exceedance') > 0)
+           .then(pl.col('hits') / pl.col('n_exceedance'))
+           .otherwise(0.0)).alias('pod'),
+        (pl.when(pl.col('n_exceedance') > 0)
+           .then(1 - pl.col('hits') / pl.col('n_exceedance'))
+           .otherwise(0.0)).alias('miss_rate'),
     ])
 
     return metrics
@@ -105,8 +112,89 @@ def print_station_table(metrics: pl.DataFrame) -> None:
     print('-'*90)
 
 
-def print_spatial_summary(metrics: pl.DataFrame) -> None:
-    """Print summary of spatial patterns."""
+def bootstrap_spatial_pod_difference(
+    df: pl.DataFrame,
+    western_stids: list[str],
+    eastern_stids: list[str],
+    n_iterations: int = 1000,
+    seed: int = 42
+) -> dict:
+    """Bootstrap test for POD difference between basin regions.
+
+    Args:
+        df: Full DataFrame with all station data
+        western_stids: List of station IDs in western region
+        eastern_stids: List of station IDs in eastern region
+        n_iterations: Number of bootstrap iterations
+        seed: Random seed for reproducibility
+
+    Returns:
+        Dict with west_pod, east_pod, difference, ci_lower, ci_upper, p_value
+    """
+    rng = np.random.default_rng(seed)
+
+    # Filter to exceedance days only
+    exc_df = df.filter(
+        (pl.col('obs_mda8') >= THRESHOLD) &
+        pl.col('aqm_max').is_not_null()
+    )
+
+    west_data = exc_df.filter(pl.col('stid').is_in(western_stids))
+    east_data = exc_df.filter(pl.col('stid').is_in(eastern_stids))
+
+    n_west = len(west_data)
+    n_east = len(east_data)
+
+    if n_west == 0 or n_east == 0:
+        return {'west_pod': 0.0, 'east_pod': 0.0, 'difference': 0.0,
+                'ci_lower': 0.0, 'ci_upper': 0.0, 'p_value': 1.0}
+
+    west_fcst = west_data['aqm_max'].to_numpy()
+    east_fcst = east_data['aqm_max'].to_numpy()
+
+    # Observed POD
+    west_pod = (west_fcst >= THRESHOLD).sum() / n_west
+    east_pod = (east_fcst >= THRESHOLD).sum() / n_east
+    observed_diff = west_pod - east_pod
+
+    # Bootstrap
+    diffs = np.zeros(n_iterations)
+    for i in range(n_iterations):
+        west_idx = rng.integers(0, n_west, size=n_west)
+        east_idx = rng.integers(0, n_east, size=n_east)
+        west_pod_boot = (west_fcst[west_idx] >= THRESHOLD).sum() / n_west
+        east_pod_boot = (east_fcst[east_idx] >= THRESHOLD).sum() / n_east
+        diffs[i] = west_pod_boot - east_pod_boot
+
+    ci_lower = np.percentile(diffs, 2.5)
+    ci_upper = np.percentile(diffs, 97.5)
+
+    # Two-sided p-value: probability that difference could be zero or opposite sign
+    if observed_diff >= 0:
+        p_value = np.mean(diffs <= 0) * 2
+    else:
+        p_value = np.mean(diffs >= 0) * 2
+    p_value = min(p_value, 1.0)
+
+    return {
+        'west_pod': west_pod,
+        'east_pod': east_pod,
+        'difference': observed_diff,
+        'ci_lower': ci_lower,
+        'ci_upper': ci_upper,
+        'p_value': p_value,
+        'n_west': n_west,
+        'n_east': n_east
+    }
+
+
+def print_spatial_summary(metrics: pl.DataFrame, df: pl.DataFrame = None) -> None:
+    """Print summary of spatial patterns.
+
+    Args:
+        metrics: Station-level aggregated metrics
+        df: Optional full DataFrame for bootstrap test
+    """
     print('\n' + '='*60)
     print('SPATIAL PATTERN ANALYSIS')
     print('='*60)
@@ -114,15 +202,18 @@ def print_spatial_summary(metrics: pl.DataFrame) -> None:
     # Sort by longitude
     sorted_metrics = metrics.sort('lon', descending=True)
 
-    # Western stations (lon < -109.8)
-    western = metrics.filter(pl.col('lon') < -109.8)
-    eastern = metrics.filter(pl.col('lon') >= -109.8)
+    # Western stations (lon < BASIN_SPLIT_LON)
+    western = metrics.filter(pl.col('lon') < BASIN_SPLIT_LON)
+    eastern = metrics.filter(pl.col('lon') >= BASIN_SPLIT_LON)
 
     if len(western) > 0 and len(eastern) > 0:
         west_pod = western['pod'].mean()
         east_pod = eastern['pod'].mean()
         west_bias = western['mean_bias'].mean()
         east_bias = eastern['mean_bias'].mean()
+
+        west_stids = western['stid'].to_list()
+        east_stids = eastern['stid'].to_list()
 
         print('\nWestern Basin (UBCSP, QRS):')
         print(f'  Mean POD: {west_pod:.1%}')
@@ -131,6 +222,18 @@ def print_spatial_summary(metrics: pl.DataFrame) -> None:
         print('\nEastern/Central Basin (UBHSP, QV4, UB7ST):')
         print(f'  Mean POD: {east_pod:.1%}')
         print(f'  Mean Bias: {east_bias:+.2f} ppb')
+
+        # Bootstrap test for significance if df provided
+        if df is not None:
+            boot_result = bootstrap_spatial_pod_difference(df, west_stids, east_stids)
+            print('\nStatistical Test (Bootstrap, n=1000):')
+            print(f'  POD Difference (West - East): {boot_result["difference"]:.1%}')
+            print(f'  95% CI: [{boot_result["ci_lower"]:.1%}, {boot_result["ci_upper"]:.1%}]')
+            print(f'  p-value: {boot_result["p_value"]:.3f}')
+            if boot_result['p_value'] < 0.05:
+                print('  -> Difference is statistically significant (p < 0.05)')
+            else:
+                print('  -> Difference is NOT statistically significant')
 
         print('\nPattern Assessment:')
         if east_pod < west_pod - 0.05:
@@ -282,6 +385,88 @@ def plot_pod_comparison(metrics: pl.DataFrame) -> None:
     plt.close(fig)
 
 
+def write_report(metrics: pl.DataFrame, df: pl.DataFrame) -> None:
+    """Write station breakdown analysis to markdown report."""
+    report = create_report('station_breakdown.md')
+    report.add_title('Station Breakdown Analysis')
+
+    # Station Verification Metrics table
+    report.add_section('Station Verification Metrics')
+    headers = ['Station', 'Name', 'n', 'Bias', 'RMSE', 'Exceedances', 'Hits', 'POD', 'Miss Rate']
+    rows = []
+    sorted_metrics = metrics.sort('lon', descending=True)
+    for row in sorted_metrics.iter_rows(named=True):
+        stid = row['stid']
+        name = row['name'] if row['name'] else stid
+        n = row['n']
+        bias = row['mean_bias']
+        rmse = row['rmse']
+        n_exc = row['n_exceedance']
+        hits = row['hits']
+        pod = row['pod'] if row['pod'] is not None else 0
+        miss = row['miss_rate'] if row['miss_rate'] is not None else 1
+        rows.append([
+            stid,
+            name,
+            str(n),
+            f'{bias:+.2f}',
+            f'{rmse:.2f}',
+            str(n_exc),
+            str(hits),
+            f'{pod:.1%}',
+            f'{miss:.1%}'
+        ])
+    report.add_table(headers, rows)
+
+    # Spatial Pattern Analysis
+    report.add_section('Spatial Pattern Analysis')
+
+    western = metrics.filter(pl.col('lon') < BASIN_SPLIT_LON)
+    eastern = metrics.filter(pl.col('lon') >= BASIN_SPLIT_LON)
+
+    if len(western) > 0 and len(eastern) > 0:
+        west_pod = western['pod'].mean()
+        east_pod = eastern['pod'].mean()
+        west_bias = western['mean_bias'].mean()
+        east_bias = eastern['mean_bias'].mean()
+        west_stids = western['stid'].to_list()
+        east_stids = eastern['stid'].to_list()
+
+        report.add_section('Western Basin (UBCSP, QRS)', level=3)
+        report.add_key_value('Mean POD', f'{west_pod:.1%}')
+        report.add_key_value('Mean Bias', f'{west_bias:+.2f} ppb')
+        report.add_text('')
+
+        report.add_section('Eastern/Central Basin (UBHSP, QV4, UB7ST)', level=3)
+        report.add_key_value('Mean POD', f'{east_pod:.1%}')
+        report.add_key_value('Mean Bias', f'{east_bias:+.2f} ppb')
+        report.add_text('')
+
+        # Bootstrap test
+        boot_result = bootstrap_spatial_pod_difference(df, west_stids, east_stids)
+        report.add_section('Bootstrap Significance Test', level=3)
+        report.add_key_value('POD Difference (West - East)', f'{boot_result["difference"]:.1%}')
+        report.add_key_value('95% CI', f'[{boot_result["ci_lower"]:.1%}, {boot_result["ci_upper"]:.1%}]')
+        report.add_key_value('P-value', f'{boot_result["p_value"]:.3f}')
+        if boot_result['p_value'] < 0.05:
+            report.add_key_value('Significance', 'Difference is statistically significant (p < 0.05)')
+        else:
+            report.add_key_value('Significance', 'Difference is NOT statistically significant')
+        report.add_text('')
+
+        # Pattern Assessment
+        report.add_section('Pattern Assessment', level=3)
+        if east_pod < west_pod - 0.05:
+            assessment = 'Eastern stations show WORSE POD (potential snow shadow effect)'
+        elif west_pod < east_pod - 0.05:
+            assessment = 'Western stations show WORSE POD'
+        else:
+            assessment = 'POD relatively uniform across basin'
+        report.add_text(assessment)
+
+    report.save()
+
+
 def main():
     """Main function."""
     print('='*60)
@@ -303,7 +488,7 @@ def main():
 
     # Print results
     print_station_table(metrics)
-    print_spatial_summary(metrics)
+    print_spatial_summary(metrics, df)
 
     # Create visualizations
     print('\n[3/4] Creating station map...')
@@ -311,6 +496,9 @@ def main():
 
     print('\n[4/4] Creating POD comparison chart...')
     plot_pod_comparison(metrics)
+
+    # Write markdown report
+    write_report(metrics, df)
 
     print('\nDone!')
 

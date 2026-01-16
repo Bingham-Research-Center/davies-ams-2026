@@ -13,9 +13,11 @@ import polars as pl
 from pathlib import Path
 from datetime import date, timedelta
 
+from verification_metrics import THRESHOLD
+from report_writer import create_report
+
 DATA_DIR = Path(__file__).parent.parent / 'data'
 DATA_PATH = DATA_DIR / 'all_matched_obs_aqm.parquet'
-THRESHOLD = 70  # ppb NAAQS threshold
 
 # Basin center for GFS extraction
 BASIN_LAT = 40.0
@@ -279,6 +281,129 @@ def print_event_evolution(df: pl.DataFrame, start_date: date, end_date: date) ->
     print('Key finding: AQM struggles at event onset, improves as event matures')
 
 
+def write_report(
+    df: pl.DataFrame,
+    worst_miss: pl.DataFrame,
+    worst_fa: pl.DataFrame,
+    best_hit: pl.DataFrame
+) -> None:
+    """Write case studies analysis to markdown report."""
+    report = create_report('case_studies.md')
+    report.add_title('Case Studies Analysis')
+
+    # Extract case data
+    wm = worst_miss.row(0, named=True)
+    fa = worst_fa.row(0, named=True)
+    bh = best_hit.row(0, named=True)
+
+    # Summary table
+    report.add_section('Case Study Summary')
+    headers = ['Case', 'Date', 'Station', 'Obs (ppb)', 'AQM (ppb)', 'Bias (ppb)']
+    rows = [
+        ['Worst Miss', str(wm['date']), wm['stid'], f'{wm["obs_mda8"]:.1f}', f'{wm["aqm_max"]:.1f}', f'{wm["bias"]:+.1f}'],
+        ['False Alarm', str(fa['date']), fa['stid'], f'{fa["obs_mda8"]:.1f}', f'{fa["aqm_max"]:.1f}', f'{fa["bias"]:+.1f}'],
+        ['Best Hit', str(bh['date']), bh['stid'], f'{bh["obs_mda8"]:.1f}', f'{bh["aqm_max"]:.1f}', f'{bh["bias"]:+.1f}'],
+    ]
+    report.add_table(headers, rows)
+
+    # Individual case details
+    cases = [
+        ('Worst Miss', wm, 'All stations exceeded threshold'),
+        ('False Alarm', fa, 'No station exceeded threshold'),
+        ('Best Hit', bh, 'All stations exceeded threshold'),
+    ]
+
+    for label, case, validation in cases:
+        report.add_section(f'{label}', level=2)
+        report.add_key_value('Date', str(case['date']))
+        report.add_key_value('Station', case['stid'])
+        report.add_key_value('Winter', case['winter'])
+        report.add_key_value('Observed', f'{case["obs_mda8"]:.1f} ppb')
+        report.add_key_value('AQM Forecast', f'{case["aqm_max"]:.1f} ppb')
+        report.add_key_value('Bias', f'{case["bias"]:+.1f} ppb')
+        report.add_key_value('Validation', validation)
+        report.add_text('')
+
+    # Meteorological Context
+    report.add_section('Meteorological Context')
+    headers = ['Date', 'Case', 'Snow', 'ΔT (°C)', 'Wind', 'RH', 'Obs', 'AQM']
+    rows = []
+    met_cases = [
+        ('Worst Miss', wm['date'], wm['obs_mda8'], wm['aqm_max']),
+        ('False Alarm', fa['date'], fa['obs_mda8'], fa['aqm_max']),
+        ('Best Hit', bh['date'], bh['obs_mda8'], bh['aqm_max']),
+    ]
+    for label, d, obs, aqm in met_cases:
+        met = get_met_context(d)
+        snow_str = f'{met["snow_in"]:.1f}"' if met['snow_in'] is not None else 'N/A'
+        dt_str = f'{met["delta_t"]:.1f}' if met['delta_t'] is not None else 'N/A'
+        wind_str = f'{met["wind"]:.1f}' if met['wind'] is not None else 'N/A'
+        rh_str = f'{met["rh"]:.0f}%' if met['rh'] is not None else 'N/A'
+        rows.append([str(d), label, snow_str, dt_str, wind_str, rh_str, f'{obs:.0f}', f'{aqm:.0f}'])
+    report.add_table(headers, rows)
+    report.add_text('ΔT = diurnal temp range (smaller = stronger inversion)')
+
+    # GFS Snow Comparison
+    report.add_section('GFS Snow Depth Comparison')
+    headers = ['Date', 'Case', 'GFS Snow', 'Obs Snow', 'Error']
+    rows = []
+    gfs_cases = [
+        ('Worst Miss', wm['date']),
+        ('False Alarm', fa['date']),
+        ('Best Hit', bh['date']),
+    ]
+    for label, d in gfs_cases:
+        met = get_met_context(d)
+        gfs_snow = get_gfs_snow(d)
+        obs_snow = met['snow_in']
+        if gfs_snow is not None and obs_snow is not None and obs_snow > 0:
+            error = (gfs_snow - obs_snow) / obs_snow * 100
+            rows.append([str(d), label, f'{gfs_snow:.1f}"', f'{obs_snow:.1f}"', f'{error:+.0f}%'])
+        else:
+            rows.append([str(d), label, 'N/A', 'N/A', 'N/A'])
+    report.add_table(headers, rows)
+
+    # AQM Error Evolution (Feb 2023 event)
+    report.add_section('AQM Error Evolution (Feb 2023 Event)')
+    start_date = date(2023, 2, 3)
+    end_date = date(2023, 2, 8)
+
+    event = df.filter(
+        (pl.col('date') >= start_date) & (pl.col('date') <= end_date)
+    )
+    by_date = event.group_by('date').agg([
+        pl.col('obs_mda8').mean().alias('mean_obs'),
+        pl.col('aqm_max').mean().alias('mean_aqm'),
+        pl.col('bias').mean().alias('mean_bias'),
+    ]).sort('date')
+
+    phases = {
+        date(2023, 2, 3): 'Onset',
+        date(2023, 2, 4): 'Ramp-up',
+        date(2023, 2, 5): 'Peak',
+        date(2023, 2, 6): 'Peak',
+        date(2023, 2, 7): 'Decay',
+        date(2023, 2, 8): 'Decay',
+    }
+
+    headers = ['Date', 'Mean Obs', 'Mean AQM', 'Mean Bias', 'Phase']
+    rows = []
+    for row in by_date.iter_rows(named=True):
+        d = row['date']
+        phase = phases.get(d, '')
+        rows.append([
+            str(d),
+            f'{row["mean_obs"]:.0f}',
+            f'{row["mean_aqm"]:.0f}',
+            f'{row["mean_bias"]:+.1f}',
+            phase
+        ])
+    report.add_table(headers, rows)
+    report.add_text('**Key finding:** AQM struggles at event onset, improves as event matures')
+
+    report.save()
+
+
 def main():
     """Main function."""
     print('Loading data...')
@@ -338,6 +463,9 @@ def main():
 
     # Event evolution (Feb 2023 event)
     print_event_evolution(df, date(2023, 2, 3), date(2023, 2, 8))
+
+    # Write markdown report
+    write_report(df, worst_miss, worst_fa, best_hit)
 
     print('\nDone!')
 

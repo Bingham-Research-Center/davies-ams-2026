@@ -11,9 +11,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 
+from verification_metrics import THRESHOLD, bootstrap_pod_ci
+from report_writer import create_report
+
 DATA_PATH = Path(__file__).parent.parent / 'data' / 'all_matched_obs_aqm.parquet'
 OUTPUT_DIR = Path(__file__).parent.parent / 'figures'
-THRESHOLD = 70
 
 
 def load_data() -> pl.DataFrame:
@@ -21,15 +23,20 @@ def load_data() -> pl.DataFrame:
     return pl.read_parquet(DATA_PATH)
 
 
-def stratified_pod(df: pl.DataFrame) -> list[dict]:
-    """Calculate POD by observed severity tier.
+def stratified_pod(df: pl.DataFrame, include_ci: bool = True) -> list[dict]:
+    """Calculate POD by observed severity tier with optional bootstrap CIs.
 
-    Returns list of dicts with tier info, n, hits, and POD.
+    Args:
+        df: DataFrame with obs_mda8 and aqm_max columns
+        include_ci: Whether to compute 95% bootstrap confidence intervals
+
+    Returns:
+        List of dicts with tier info, n, hits, POD, and optionally CI bounds.
     """
     tiers = [
         (70, 80, '70-80'),
         (80, 90, '80-90'),
-        (90, 200, '90+'),  # Upper bound high enough to capture all extreme events
+        (90, float('inf'), '90+'),  # No upper limit for extreme events
     ]
 
     results = []
@@ -45,7 +52,7 @@ def stratified_pod(df: pl.DataFrame) -> list[dict]:
 
         pod = n_hits / n_obs if n_obs > 0 else 0
 
-        results.append({
+        result = {
             'tier': label,
             'low': low,
             'high': high,
@@ -53,19 +60,74 @@ def stratified_pod(df: pl.DataFrame) -> list[dict]:
             'hits': n_hits,
             'misses': n_obs - n_hits,
             'pod': pod,
-        })
+        }
+
+        # Add bootstrap CI if requested and enough data
+        if include_ci and n_obs >= 10:
+            # For tier-specific POD, we just need to bootstrap the hit rate
+            pod_est, ci_lower, ci_upper = bootstrap_tier_pod(tier_df, n_iterations=1000)
+            result['ci_lower'] = ci_lower
+            result['ci_upper'] = ci_upper
+        elif include_ci:
+            result['ci_lower'] = None
+            result['ci_upper'] = None
+
+        results.append(result)
 
     return results
 
 
+def bootstrap_tier_pod(
+    tier_df: pl.DataFrame,
+    n_iterations: int = 1000,
+    seed: int = 42
+) -> tuple[float, float, float]:
+    """Bootstrap POD for a specific severity tier.
+
+    Args:
+        tier_df: DataFrame filtered to a specific tier (all rows are exceedances)
+        n_iterations: Number of bootstrap samples
+        seed: Random seed for reproducibility
+
+    Returns:
+        Tuple of (pod, ci_lower, ci_upper)
+    """
+    rng = np.random.default_rng(seed)
+    n = len(tier_df)
+
+    if n == 0:
+        return (0.0, 0.0, 0.0)
+
+    fcst = tier_df['aqm_max'].to_numpy()
+    hits = (fcst >= THRESHOLD).sum()
+    pod_observed = hits / n
+
+    # Bootstrap
+    pods = np.zeros(n_iterations)
+    for i in range(n_iterations):
+        idx = rng.integers(0, n, size=n)
+        hits_boot = (fcst[idx] >= THRESHOLD).sum()
+        pods[i] = hits_boot / n
+
+    ci_lower = np.percentile(pods, 2.5)
+    ci_upper = np.percentile(pods, 97.5)
+
+    return (pod_observed, ci_lower, ci_upper)
+
+
 def plot_stratified_pod(pod_data: list[dict]) -> None:
-    """Create horizontal bar chart of POD by severity tier."""
+    """Create horizontal bar chart of POD by severity tier with CIs."""
     OUTPUT_DIR.mkdir(exist_ok=True)
 
     tiers = [d['tier'] for d in pod_data]
     pods = [d['pod'] for d in pod_data]
     ns = [d['n'] for d in pod_data]
     hits = [d['hits'] for d in pod_data]
+
+    # Extract CI bounds if present
+    ci_lowers = [d.get('ci_lower') for d in pod_data]
+    ci_uppers = [d.get('ci_upper') for d in pod_data]
+    has_ci = any(cl is not None for cl in ci_lowers)
 
     fig, ax = plt.subplots(figsize=(9, 5))
 
@@ -74,14 +136,25 @@ def plot_stratified_pod(pod_data: list[dict]) -> None:
 
     bars = ax.barh(y_pos, pods, color=colors, edgecolor='black', linewidth=1.2, height=0.6)
 
+    # Add error bars for CI if available
+    if has_ci:
+        for i, (pod, cl, cu) in enumerate(zip(pods, ci_lowers, ci_uppers)):
+            if cl is not None and cu is not None:
+                ax.errorbar(pod, i, xerr=[[pod - cl], [cu - pod]],
+                           fmt='none', color='black', capsize=4, capthick=1.5, linewidth=1.5)
+
     # Add labels on bars
-    for i, (bar, n, h, pod) in enumerate(zip(bars, ns, hits, pods)):
+    for i, (bar, n, h, pod, cl, cu) in enumerate(zip(bars, ns, hits, pods, ci_lowers, ci_uppers)):
         # POD value inside bar
         ax.text(pod - 0.03, i, f'{pod:.0%}', va='center', ha='right',
                 fontsize=14, fontweight='bold', color='white')
-        # n and hits outside bar
-        ax.text(pod + 0.02, i, f'n={n}, hits={h}', va='center', ha='left',
-                fontsize=11, color='black')
+        # n, hits, and CI outside bar
+        if cl is not None and cu is not None:
+            label = f'n={n}, hits={h}\n95% CI: [{cl:.0%}, {cu:.0%}]'
+        else:
+            label = f'n={n}, hits={h}'
+        ax.text(pod + 0.02, i, label, va='center', ha='left',
+                fontsize=10, color='black')
 
     ax.set_yticks(y_pos)
     ax.set_yticklabels([f'{t} ppb' for t in tiers], fontsize=12)
@@ -115,21 +188,71 @@ def plot_stratified_pod(pod_data: list[dict]) -> None:
 
 def print_pod_table(pod_data: list[dict]) -> None:
     """Print severity-stratified POD table to console."""
+    has_ci = any(d.get('ci_lower') is not None for d in pod_data)
+
     print('\nSeverity-Stratified POD:')
-    print('-' * 45)
-    print(f'{"Tier":<12} {"n":>6} {"Hits":>6} {"Misses":>8} {"POD":>8}')
-    print('-' * 45)
+    if has_ci:
+        print('-' * 65)
+        print(f'{"Tier":<12} {"n":>6} {"Hits":>6} {"Misses":>8} {"POD":>8} {"95% CI":>18}')
+        print('-' * 65)
+    else:
+        print('-' * 45)
+        print(f'{"Tier":<12} {"n":>6} {"Hits":>6} {"Misses":>8} {"POD":>8}')
+        print('-' * 45)
 
     total_n = 0
     total_hits = 0
     for d in pod_data:
-        print(f'{d["tier"] + " ppb":<12} {d["n"]:>6} {d["hits"]:>6} {d["misses"]:>8} {d["pod"]:>8.2f}')
+        ci_str = ''
+        if has_ci and d.get('ci_lower') is not None:
+            ci_str = f'[{d["ci_lower"]:.2f}, {d["ci_upper"]:.2f}]'
+        if has_ci:
+            print(f'{d["tier"] + " ppb":<12} {d["n"]:>6} {d["hits"]:>6} {d["misses"]:>8} {d["pod"]:>8.2f} {ci_str:>18}')
+        else:
+            print(f'{d["tier"] + " ppb":<12} {d["n"]:>6} {d["hits"]:>6} {d["misses"]:>8} {d["pod"]:>8.2f}')
         total_n += d['n']
         total_hits += d['hits']
 
-    print('-' * 45)
+    if has_ci:
+        print('-' * 65)
+    else:
+        print('-' * 45)
     overall_pod = total_hits / total_n if total_n > 0 else 0
     print(f'{"Overall":<12} {total_n:>6} {total_hits:>6} {total_n - total_hits:>8} {overall_pod:>8.2f}')
+
+
+def order_crosstab_bins(
+    crosstab: pl.DataFrame,
+    row_col: str,
+    row_order: list[str],
+    col_order: list[str]
+) -> pl.DataFrame:
+    """Reorder crosstab rows and columns to specified bin order.
+
+    Args:
+        crosstab: Pivoted DataFrame with row labels in row_col
+        row_col: Name of the row label column
+        row_order: Desired order of row labels
+        col_order: Desired order of column labels (excluding row_col)
+
+    Returns:
+        Reordered DataFrame with columns in specified order and rows sorted
+    """
+    # Add missing columns with zeros
+    for col in col_order:
+        if col not in crosstab.columns:
+            crosstab = crosstab.with_columns(pl.lit(0).alias(col))
+
+    # Reorder columns
+    crosstab = crosstab.select([row_col] + col_order)
+
+    # Sort rows by specified order
+    order_map = {label: i for i, label in enumerate(row_order)}
+    crosstab = crosstab.with_columns([
+        pl.col(row_col).replace_strict(order_map).alias('_order')
+    ]).sort('_order').drop('_order')
+
+    return crosstab
 
 
 def near_miss_analysis(df: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
@@ -173,25 +296,15 @@ def near_miss_analysis(df: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
         values='count'
     ).fill_null(0)
 
-    # Ensure correct column order
+    # Define bin orders
     aqm_bin_order = ['0-30', '30-50', '50-60', '60-69']
     obs_bin_order = ['70-80', '80-90', '90+']
 
-    # Add missing columns if needed
-    for col in aqm_bin_order:
-        if col not in crosstab.columns:
-            crosstab = crosstab.with_columns(pl.lit(0).alias(col))
-
-    # Reorder columns
-    crosstab = crosstab.select(['obs_bin'] + aqm_bin_order)
-
-    # Sort rows by obs_bin order
-    obs_order_map = {label: i for i, label in enumerate(obs_bin_order)}
-    crosstab = crosstab.with_columns([
-        pl.col('obs_bin').replace_strict(obs_order_map).alias('_order')
-    ]).sort('_order').drop('_order')
+    # Use helper to reorder rows and columns
+    crosstab = order_crosstab_bins(crosstab, 'obs_bin', obs_bin_order, aqm_bin_order)
 
     # Calculate mean AQM forecast by observed tier
+    obs_order_map = {label: i for i, label in enumerate(obs_bin_order)}
     mean_aqm = misses.group_by('obs_bin').agg([
         pl.col('aqm_max').mean().alias('mean_aqm'),
         pl.col('aqm_max').std().alias('std_aqm'),
@@ -314,6 +427,96 @@ def print_near_miss_summary(crosstab: pl.DataFrame, mean_aqm: pl.DataFrame) -> N
         print(f'  {row["obs_bin"]} ppb: {row["mean_aqm"]:.1f} ppb{std_str}, n={row["n"]}')
 
 
+def write_report(
+    pod_data: list[dict],
+    crosstab: pl.DataFrame,
+    mean_aqm: pl.DataFrame
+) -> None:
+    """Write stratified analysis to markdown report."""
+    report = create_report('stratified_analysis.md')
+    report.add_title('Stratified Analysis')
+
+    # Severity-Stratified POD table
+    report.add_section('Severity-Stratified POD')
+    has_ci = any(d.get('ci_lower') is not None for d in pod_data)
+
+    if has_ci:
+        headers = ['Tier', 'n', 'Hits', 'Misses', 'POD', '95% CI']
+    else:
+        headers = ['Tier', 'n', 'Hits', 'Misses', 'POD']
+
+    rows = []
+    total_n = 0
+    total_hits = 0
+    for d in pod_data:
+        if has_ci and d.get('ci_lower') is not None:
+            ci_str = f'[{d["ci_lower"]:.2f}, {d["ci_upper"]:.2f}]'
+            rows.append([
+                f'{d["tier"]} ppb',
+                str(d['n']),
+                str(d['hits']),
+                str(d['misses']),
+                f'{d["pod"]:.2f}',
+                ci_str
+            ])
+        else:
+            rows.append([
+                f'{d["tier"]} ppb',
+                str(d['n']),
+                str(d['hits']),
+                str(d['misses']),
+                f'{d["pod"]:.2f}'
+            ])
+        total_n += d['n']
+        total_hits += d['hits']
+
+    report.add_table(headers, rows)
+
+    overall_pod = total_hits / total_n if total_n > 0 else 0
+    report.add_key_value('Overall', f'n={total_n}, hits={total_hits}, POD={overall_pod:.2f}')
+    report.add_text('')
+
+    # Near-Miss Cross-tabulation
+    report.add_section('Near-Miss Analysis')
+
+    obs_bins = crosstab['obs_bin'].to_list()
+    aqm_bins = ['0-30', '30-50', '50-60', '60-69']
+
+    total_misses = sum(crosstab.select(aqm_bins).sum_horizontal().to_list())
+    report.add_text(f'Cross-tabulation of {total_misses} misses (rows: observed, cols: AQM forecast)')
+    report.add_text('')
+
+    headers = ['Obs \\ AQM'] + [f'{ab} ppb' for ab in aqm_bins] + ['Total']
+    rows = []
+    for row in crosstab.iter_rows(named=True):
+        row_total = sum(row[ab] for ab in aqm_bins)
+        rows.append([
+            f'{row["obs_bin"]} ppb',
+            *[str(row[ab]) for ab in aqm_bins],
+            str(row_total)
+        ])
+
+    # Add column totals row
+    col_totals = ['Total']
+    for ab in aqm_bins:
+        col_totals.append(str(crosstab[ab].sum()))
+    col_totals.append(str(total_misses))
+    rows.append(col_totals)
+
+    report.add_table(headers, rows)
+
+    # Mean AQM by tier
+    report.add_section('Mean AQM Forecast on Miss Days', level=3)
+    for row in mean_aqm.iter_rows(named=True):
+        std_str = f' (std: {row["std_aqm"]:.1f})' if row["std_aqm"] else ''
+        report.add_key_value(
+            f'{row["obs_bin"]} ppb',
+            f'{row["mean_aqm"]:.1f} ppb{std_str}, n={row["n"]}'
+        )
+
+    report.save()
+
+
 def main():
     """Main function."""
     print('Loading data...')
@@ -337,6 +540,9 @@ def main():
     crosstab, mean_aqm = near_miss_analysis(df)
     print_near_miss_summary(crosstab, mean_aqm)
     plot_near_miss_heatmap(crosstab, mean_aqm)
+
+    # Write markdown report
+    write_report(pod_data, crosstab, mean_aqm)
 
     print('\nDone!')
 
