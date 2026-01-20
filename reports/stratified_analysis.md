@@ -1,4 +1,4 @@
-<!-- Generated: 2026-01-16T15:38:50.571579 -->
+<!-- Generated: 2026-01-20T01:38:06.385079 -->
 
 # Stratified Analysis
 
@@ -6,28 +6,28 @@
 
 | Tier | n | Hits | Misses | POD | 95% CI |
 | --- | --- | --- | --- | --- | --- |
-| 70-80 ppb | 74 | 17 | 57 | 0.23 | [0.14, 0.34] |
-| 80-90 ppb | 53 | 18 | 35 | 0.34 | [0.21, 0.47] |
-| 90+ ppb | 79 | 27 | 52 | 0.34 | [0.24, 0.44] |
+| 70-80 ppb | 74 | 19 | 55 | 0.26 | [0.16, 0.35] |
+| 80-90 ppb | 44 | 17 | 27 | 0.39 | [0.25, 0.55] |
+| 90+ ppb | 75 | 25 | 50 | 0.33 | [0.23, 0.44] |
 
-- **Overall:** n=206, hits=62, POD=0.30
+- **Overall:** n=193, hits=61, POD=0.32
 
 
 ## Near-Miss Analysis
 
-Cross-tabulation of 144 misses (rows: observed, cols: AQM forecast)
+Cross-tabulation of 132 misses (rows: observed, cols: AQM forecast)
 
 
 
 | Obs \ AQM | 0-30 ppb | 30-50 ppb | 50-60 ppb | 60-69 ppb | Total |
 | --- | --- | --- | --- | --- | --- |
-| 70-80 ppb | 1 | 18 | 19 | 19 | 57 |
-| 80-90 ppb | 0 | 6 | 15 | 14 | 35 |
-| 90+ ppb | 0 | 21 | 16 | 15 | 52 |
-| Total | 1 | 45 | 50 | 48 | 144 |
+| 70-80 ppb | 1 | 17 | 16 | 21 | 55 |
+| 80-90 ppb | 0 | 5 | 11 | 11 | 27 |
+| 90+ ppb | 0 | 21 | 16 | 13 | 50 |
+| Total | 1 | 43 | 43 | 45 | 132 |
 
 ### Mean AQM Forecast on Miss Days
 
-- **70-80 ppb:** 55.2 ppb (std: 9.7), n=57
-- **80-90 ppb:** 57.0 ppb (std: 7.8), n=35
-- **90+ ppb:** 52.8 ppb (std: 10.4), n=52
+- **70-80 ppb:** 56.0 ppb (std: 9.7), n=55
+- **80-90 ppb:** 57.1 ppb (std: 8.4), n=27
+- **90+ ppb:** 52.2 ppb (std: 10.1), n=50

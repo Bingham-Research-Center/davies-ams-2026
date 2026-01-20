@@ -1,4 +1,4 @@
-<!-- Generated: 2026-01-16T15:38:48.127527 -->
+<!-- Generated: 2026-01-20T01:36:22.662053 -->
 
 # Snow Depth vs AQM Bias Analysis
 
@@ -6,61 +6,69 @@
 
 ### Dataset Size
 
-- **Total records:** 2,231
-- **Unique days:** 600
+- **Total records:** 2,224
+- **Unique days:** 597
 
+### Data Completeness Note
+
+⚠️ **Important**: This subset (2,224 records) contains only **42 exceedance days** compared to **193 exceedances** in the full dataset (2,557 station-days). Only 22% of exceedance days have matching snow depth data.
+
+This affects interpretation:
+- The 42 exceedance days with snow data are **biased toward extreme events** (mean obs = 124 ppb vs 94 ppb for all exceedances)
+- Mean bias for this subset is -76.7 ppb (vs -31.5 ppb for all 193 exceedance days)
+- Snow-bias correlations should be interpreted with caution due to sample size limitations
 
 ### Snow Depth Statistics (cm)
 
-- **Mean:** 24.38
+- **Mean:** 24.39
 - **Median:** 3.95
-- **Std:** 37.90
+- **Std:** 37.94
 - **Range:** 0.00 - 177.80
 
 
 ### Bias Statistics (ppb)
 
-- **Mean:** -4.18
-- **Median:** -2.53
-- **Std:** 13.52
+- **Mean:** -3.67
+- **Median:** -2.23
+- **Std:** 13.40
 - **Range:** -124.75 - 34.82
 
 
 ### Regression Results
 
-- **Correlation (r):** -0.079
-- **Slope:** -0.0283
-- **Intercept:** -3.49
-- **P-value:** 0.0002
+- **Correlation (r):** -0.061
+- **Slope:** -0.0214
+- **Intercept:** -3.15
+- **P-value:** 0.0043
 
 
 ## Exceedance Days Analysis
 
 ### Dataset Size
 
-- **Total records:** 48
-- **Unique days:** 45
+- **Total records:** 42
+- **Unique days:** 41
 
 
 ### Snow Depth Statistics (cm)
 
-- **Mean:** 35.02
-- **Median:** 18.08
-- **Std:** 43.19
-- **Range:** 0.00 - 177.80
+- **Mean:** 27.97
+- **Median:** 16.94
+- **Std:** 31.33
+- **Range:** 0.00 - 90.17
 
 
 ### Bias Statistics (ppb)
 
-- **Mean:** -70.52
-- **Median:** -87.18
-- **Std:** 37.34
-- **Range:** -124.75 - 2.59
+- **Mean:** -76.65
+- **Median:** -88.79
+- **Std:** 35.83
+- **Range:** -124.75 - 2.55
 
 
 ### Regression Results
 
-- **Correlation (r):** 0.326
-- **Slope:** 0.2817
-- **Intercept:** -80.39
-- **P-value:** 0.0238
+- **Correlation (r):** 0.264
+- **Slope:** 0.3023
+- **Intercept:** -85.11
+- **P-value:** 0.0907

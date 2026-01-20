@@ -25,17 +25,18 @@ def extract_at_stations(ds: xr.Dataset, stations: dict[str, tuple[float, float]]
     return results
 
 
-def fetch_aqm_data(start: str, end: str) -> pl.DataFrame:
+def fetch_aqm_data(start: str, end: str, fxx: int = 0) -> pl.DataFrame:
     dates = pd.date_range(start, end, freq='D')
     aqm_data = []
     station_coords = get_station_coords(list(OZONE_STATIONS.keys()))
 
     print(f"Fetching AQM data...")
     print(f"  Period: {start} to {end}")
+    print(f"  Forecast hour (fxx): {fxx}")
     print(f"  Stations: {len(station_coords)}")
 
     for i, date in enumerate(dates):
-        H = Herbie(date.strftime('%Y-%m-%d 12:00'), model='aqm', product='max_8hr_o3', fxx=0)
+        H = Herbie(date.strftime('%Y-%m-%d 12:00'), model='aqm', product='max_8hr_o3', fxx=fxx)
         local_file = H.download()
         ds = xr.open_dataset(local_file, engine='cfgrib', decode_times=False)
         station_vals = extract_at_stations(ds, station_coords)
@@ -55,9 +56,10 @@ def main() -> None:
     parser.add_argument('--start', required=True)
     parser.add_argument('--end', required=True)
     parser.add_argument('--output', required=True)
+    parser.add_argument('--fxx', type=int, default=0, help='Forecast hour (0=analysis, 24=Day1)')
     args = parser.parse_args()
 
-    df = fetch_aqm_data(args.start, args.end)
+    df = fetch_aqm_data(args.start, args.end, fxx=args.fxx)
     df.write_parquet(args.output)
     print(f"\nSaved {len(df)} rows to {args.output}")
 

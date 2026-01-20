@@ -1,6 +1,13 @@
 """
 Create matched observations and AQM forecast dataset.
 Combines UDAQ (QRS, QV4) and BRC (UBHSP, UB7ST, UBCSP) stations.
+
+AQM Source Data:
+    The AQM forecasts used here are fetched with fxx=0 (analysis time, forecast hour 0).
+    This represents the model's best estimate for each day using analysis-time data,
+    providing maximum skill for standalone model evaluation. For lead-time comparisons
+    (e.g., CLYFAR vs AQM at matched 24h lead times), use winter2022-23_aqm_fxx24.parquet
+    which contains fxx=24 forecasts.
 """
 
 import polars as pl
@@ -60,9 +67,11 @@ def compute_mda8(df: pl.DataFrame) -> pl.DataFrame:
         .alias('rolling_8hr')
     ])
 
-    # Extract date and compute daily max of rolling 8-hour mean
+    # Extract date using local time (MST = UTC-7) for EPA MDA8 day boundaries
+    # Data is stored in UTC, but MDA8 should use local midnight boundaries
+    MST_OFFSET_HOURS = 7
     ozone = ozone.with_columns([
-        pl.col('date_time').dt.date().alias('date')
+        (pl.col('date_time') - pl.duration(hours=MST_OFFSET_HOURS)).dt.date().alias('date')
     ])
 
     mda8 = ozone.group_by(['date', 'stid']).agg([
@@ -156,8 +165,13 @@ def main():
         .alias('source')
     ])
 
+    # Add fxx column to document forecast lead time (0 = analysis time)
+    matched = matched.with_columns([
+        pl.lit(0).alias('fxx')
+    ])
+
     # Reorder columns to match expected schema
-    matched = matched.select(['date', 'stid', 'obs_mda8', 'winter', 'source', 'aqm_max'])
+    matched = matched.select(['date', 'stid', 'obs_mda8', 'winter', 'source', 'aqm_max', 'fxx'])
     matched = matched.sort(['date', 'stid'])
 
     # Save

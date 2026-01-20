@@ -1,30 +1,23 @@
 """
-Performance Diagram for AQM ozone exceedance prediction.
+Performance Diagram comparing AQM and CLYFAR ozone exceedance prediction.
 Displays POD vs Success Ratio with CSI contours and frequency bias lines.
+Focused on winter 2022-23 overlap period for direct comparison.
 """
 
 import polars as pl
 import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
-from dataclasses import dataclass
 
-THRESHOLD = 70  # ppb NAAQS threshold
+from verification_metrics import THRESHOLD, VerificationMetrics, calculate_contingency_counts
+
 DATA_PATH = Path(__file__).parent.parent / 'data' / 'all_matched_obs_aqm.parquet'
+AQM_FXX24_PATH = Path(__file__).parent.parent / 'data' / 'winter2022-23_aqm_fxx24.parquet'
+CLYFAR_PATH = Path(__file__).parent.parent / 'data' / 'clyfar_hindcast_stats.csv'
 OUTPUT_DIR = Path(__file__).parent.parent / 'figures'
 
-# Season ordering for consistent display
-WINTER_ORDER = ['2019-20', '2020-21', '2021-22', '2022-23', '2023-24', '2024-25']
-
-# Color scheme for 6 seasons (colorblind-friendly, distinct)
-SEASON_COLORS = {
-    '2019-20': '#1f77b4',  # blue
-    '2020-21': '#ff7f0e',  # orange
-    '2021-22': '#2ca02c',  # green
-    '2022-23': '#9467bd',  # purple
-    '2023-24': '#8c564b',  # brown
-    '2024-25': '#e377c2',  # pink
-}
+# Probability threshold for CLYFAR poss_elevated
+POSS_THRESHOLD = 0.3
 
 # CSI contour values
 CSI_VALUES = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
@@ -33,75 +26,68 @@ CSI_VALUES = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 BIAS_VALUES = [0.25, 0.5, 1.0, 2.0, 4.0]
 
 
-@dataclass
-class PerformanceMetrics:
-    """Container for forecast verification metrics."""
-    label: str
-    hits: int
-    misses: int
-    false_alarms: int
-    correct_negatives: int
+def load_merged_data() -> pl.DataFrame:
+    """Load AQM fxx=24 and CLYFAR data, merge, and filter to overlap period.
 
-    @property
-    def pod(self) -> float:
-        """Probability of Detection = hits / (hits + misses)"""
-        denom = self.hits + self.misses
-        return self.hits / denom if denom > 0 else 0.0
-
-    @property
-    def far(self) -> float:
-        """False Alarm Ratio = false_alarms / (hits + false_alarms)"""
-        denom = self.hits + self.false_alarms
-        return self.false_alarms / denom if denom > 0 else 0.0
-
-    @property
-    def sr(self) -> float:
-        """Success Ratio = 1 - FAR"""
-        return 1.0 - self.far
-
-    @property
-    def csi(self) -> float:
-        """Critical Success Index = hits / (hits + misses + false_alarms)"""
-        denom = self.hits + self.misses + self.false_alarms
-        return self.hits / denom if denom > 0 else 0.0
-
-    @property
-    def bias(self) -> float:
-        """Frequency Bias = (hits + false_alarms) / (hits + misses)"""
-        denom = self.hits + self.misses
-        return (self.hits + self.false_alarms) / denom if denom > 0 else 0.0
-
-
-def calculate_metrics(df: pl.DataFrame, label: str) -> PerformanceMetrics:
+    Uses AQM Day 1 forecasts (fxx=24) for fair comparison with CLYFAR's ~24h lead time.
     """
-    Calculate contingency table metrics for a given dataframe.
+    # Load AQM fxx=24 Day 1 forecasts
+    aqm_fxx24 = pl.read_parquet(AQM_FXX24_PATH)
+    # Shift date by +1 day to get valid date (fxx=24 forecast made on day D is valid for day D+1)
+    aqm_fxx24 = aqm_fxx24.with_columns([
+        (pl.col('date') + pl.duration(days=1)).alias('date')
+    ])
+
+    # Load observations from matched data (date, stid, obs_mda8, winter)
+    obs = pl.read_parquet(DATA_PATH).select(['date', 'stid', 'obs_mda8', 'winter'])
+
+    # Join AQM fxx=24 with observations
+    df = obs.join(aqm_fxx24, on=['date', 'stid'], how='inner')
+
+    # Load CLYFAR data
+    clyfar = pl.read_csv(CLYFAR_PATH)
+    clyfar = clyfar.with_columns([
+        pl.col('valid_date').str.to_date().alias('date')
+    ])
+
+    # Merge on date (inner join to get overlap period)
+    df = df.join(
+        clyfar.select(['date', 'forecast_p50', 'forecast_p90', 'poss_elevated', 'poss_extreme', 'poss_moderate']),
+        on='date',
+        how='inner'
+    )
+
+    # Filter to winter 2022-23
+    df = df.filter(pl.col('winter') == '2022-23')
+
+    return df
+
+
+def calculate_metrics(df: pl.DataFrame, label: str, fcst_col: str = 'aqm_max',
+                      threshold: float = THRESHOLD) -> VerificationMetrics:
+    """
+    Calculate contingency table metrics for a given dataframe and forecast column.
 
     Args:
-        df: DataFrame with obs_mda8 and aqm_max columns
-        label: Label for the metrics (e.g., season name or 'All Seasons')
+        df: DataFrame with obs_mda8 and forecast columns
+        label: Label for the metrics
+        fcst_col: Name of the forecast column to evaluate
+        threshold: Exceedance threshold for the forecast
 
     Returns:
-        PerformanceMetrics dataclass with all verification scores
+        VerificationMetrics dataclass with all verification scores
     """
-    hits = len(df.filter(
-        (pl.col('obs_mda8') >= THRESHOLD) & (pl.col('aqm_max') >= THRESHOLD)
-    ))
-    false_alarms = len(df.filter(
-        (pl.col('obs_mda8') < THRESHOLD) & (pl.col('aqm_max') >= THRESHOLD)
-    ))
-    misses = len(df.filter(
-        (pl.col('obs_mda8') >= THRESHOLD) & (pl.col('aqm_max') < THRESHOLD)
-    ))
-    correct_negatives = len(df.filter(
-        (pl.col('obs_mda8') < THRESHOLD) & (pl.col('aqm_max') < THRESHOLD)
-    ))
+    hits, misses, false_alarms, correct_negatives = calculate_contingency_counts(
+        df, 'obs_mda8', fcst_col, threshold
+    )
 
-    return PerformanceMetrics(
-        label=label,
+    return VerificationMetrics(
+        name=label,
         hits=hits,
         misses=misses,
         false_alarms=false_alarms,
-        correct_negatives=correct_negatives
+        correct_negatives=correct_negatives,
+        n_total=len(df)
     )
 
 
@@ -176,96 +162,95 @@ def draw_bias_lines(ax: plt.Axes) -> None:
                               facecolor='white', edgecolor='none', alpha=0.7))
 
 
-def plot_data_points(ax: plt.Axes,
-                     seasonal_metrics: list,
-                     all_seasons_metrics: PerformanceMetrics) -> None:
+def plot_data_points(ax: plt.Axes, metrics_list: list[VerificationMetrics]) -> None:
     """
-    Plot seasonal data points and all-seasons aggregate.
-    """
-    # Track points at similar positions for stacking labels
-    origin_count = 0
-    lower_right_count = 0
+    Plot model comparison data points with color coding.
 
-    # Plot individual seasons as colored circles with labels
-    for metrics in seasonal_metrics:
+    Args:
+        ax: Matplotlib axes
+        metrics_list: List of VerificationMetrics for each model/threshold
+    """
+    # Color and marker scheme for different models
+    model_styles = {
+        'AQM (Day 1)': {'color': 'red', 'marker': 's', 'size': 200},
+        'CLYFAR p50': {'color': 'blue', 'marker': 'o', 'size': 150},
+        'CLYFAR p90': {'color': 'lightblue', 'marker': 'o', 'size': 150},
+        'CLYFAR poss≥0.3': {'color': 'green', 'marker': '^', 'size': 150},
+        'CLYFAR extreme≥0.1': {'color': 'purple', 'marker': 'd', 'size': 150},
+        'CLYFAR moderate≥0.3': {'color': 'orange', 'marker': 'v', 'size': 150},
+    }
+
+    for metrics in metrics_list:
+        style = model_styles.get(metrics.name, {'color': 'gray', 'marker': 'o', 'size': 100})
         ax.scatter(metrics.sr, metrics.pod,
-                   c=SEASON_COLORS.get(metrics.label, 'gray'),
-                   marker='o', s=100, edgecolors='black', linewidths=1.0,
-                   label=metrics.label, zorder=5)
+                   c=style['color'], marker=style['marker'], s=style['size'],
+                   edgecolors='black', linewidths=1.0,
+                   label=metrics.name, zorder=5)
 
-        # Add text label with smart offset based on position
-        if metrics.sr < 0.1 and metrics.pod < 0.1:  # Near origin
-            offset = (10, 10 + origin_count * 14)
-            origin_count += 1
-            ha = 'left'
-        elif metrics.sr > 0.9 and metrics.pod < 0.1:  # Lower right edge
-            offset = (-10, 10 + lower_right_count * 14)
-            lower_right_count += 1
-            ha = 'right'
-        else:  # Regular positioning
-            offset = (8, 8)
-            ha = 'left'
-
-        ax.annotate(metrics.label, xy=(metrics.sr, metrics.pod),
-                    xytext=offset, textcoords='offset points',
+        # Add label
+        offset_x = 10 if metrics.sr < 0.7 else -10
+        ha = 'left' if metrics.sr < 0.7 else 'right'
+        ax.annotate(f'{metrics.name}\nCSI={metrics.csi:.3f}',
+                    xy=(metrics.sr, metrics.pod),
+                    xytext=(offset_x, 8), textcoords='offset points',
                     fontsize=8, ha=ha, va='bottom',
                     bbox=dict(boxstyle='round,pad=0.15', facecolor='white',
-                              edgecolor='none', alpha=0.7))
-
-    # Plot all-seasons aggregate as large red square
-    ax.scatter(all_seasons_metrics.sr, all_seasons_metrics.pod,
-               c='red', marker='s', s=200, edgecolors='black', linewidths=1.5,
-               label='All Seasons', zorder=6)
+                              edgecolor='none', alpha=0.8))
 
     # Gold star at perfect forecast (1, 1)
     ax.scatter(1.0, 1.0,
                c='gold', marker='*', s=400, edgecolors='black', linewidths=1.0,
                label='Perfect', zorder=7)
 
-    # Red arrow from all-seasons point toward (1, 1)
-    dx = 1.0 - all_seasons_metrics.sr
-    dy = 1.0 - all_seasons_metrics.pod
-    if (dx**2 + dy**2) > 0.01:  # Only draw if distance is meaningful
-        ax.annotate('',
-                    xy=(1.0, 1.0),
-                    xytext=(all_seasons_metrics.sr, all_seasons_metrics.pod),
-                    arrowprops=dict(arrowstyle='->', color='red', lw=2),
-                    zorder=4)
 
-
-def add_metrics_legend(fig: plt.Figure,
-                       all_seasons_metrics: PerformanceMetrics) -> None:
+def add_metrics_legend(fig: plt.Figure, metrics_list: list[VerificationMetrics]) -> None:
     """
-    Add a metrics box below the plot (outside data area).
+    Add a metrics summary box below the plot.
     """
-    metrics_text = (
-        f'All Seasons:  POD: {all_seasons_metrics.pod:.3f}  |  '
-        f'SR: {all_seasons_metrics.sr:.3f}  |  '
-        f'CSI: {all_seasons_metrics.csi:.3f}  |  '
-        f'Bias: {all_seasons_metrics.bias:.2f}'
-    )
+    lines = ['Model          POD    FAR    CSI   Bias']
+    for m in metrics_list:
+        lines.append(f'{m.name:<14} {m.pod:.3f}  {m.far:.3f}  {m.csi:.3f}  {m.frequency_bias:.2f}')
 
-    fig.text(0.5, 0.02, metrics_text, ha='center', va='bottom',
-             fontsize=10, fontfamily='monospace',
-             bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
+    metrics_text = '\n'.join(lines)
+
+    fig.text(0.5, 0.01, metrics_text, ha='center', va='bottom',
+             fontsize=9, fontfamily='monospace',
+             bbox=dict(boxstyle='round,pad=0.4', facecolor='white',
                        edgecolor='black', alpha=0.9))
 
 
 def main():
-    """Generate the performance diagram."""
-    # Load data
-    df = pl.read_parquet(DATA_PATH)
+    """Generate the performance diagram comparing AQM and CLYFAR."""
+    # Load merged data (winter 2022-23 overlap)
+    df = load_merged_data()
+    print(f'Loaded {len(df)} station-day pairs for winter 2022-23')
 
-    # Calculate metrics for each season
-    seasonal_metrics = []
-    for winter in WINTER_ORDER:
-        df_season = df.filter(pl.col('winter') == winter)
-        if len(df_season) > 0:
-            metrics = calculate_metrics(df_season, winter)
-            seasonal_metrics.append(metrics)
+    # Calculate metrics for each model/threshold combination
+    metrics_list = []
 
-    # Calculate all-seasons aggregate
-    all_seasons_metrics = calculate_metrics(df, 'All Seasons')
+    # AQM Day 1: forecast >= 70 ppb (fxx=24, ~24h lead time)
+    aqm_metrics = calculate_metrics(df, 'AQM (Day 1)', 'aqm_max', THRESHOLD)
+    metrics_list.append(aqm_metrics)
+
+    # CLYFAR p50 >= 70 ppb
+    clyfar_p50 = calculate_metrics(df, 'CLYFAR p50', 'forecast_p50', THRESHOLD)
+    metrics_list.append(clyfar_p50)
+
+    # CLYFAR p90 >= 70 ppb
+    clyfar_p90 = calculate_metrics(df, 'CLYFAR p90', 'forecast_p90', THRESHOLD)
+    metrics_list.append(clyfar_p90)
+
+    # CLYFAR poss_elevated >= 0.3 (probability threshold)
+    clyfar_poss = calculate_metrics(df, 'CLYFAR poss≥0.3', 'poss_elevated', POSS_THRESHOLD)
+    metrics_list.append(clyfar_poss)
+
+    # CLYFAR poss_extreme >= 0.1 (probability of extreme ozone)
+    clyfar_extreme = calculate_metrics(df, 'CLYFAR extreme≥0.1', 'poss_extreme', 0.1)
+    metrics_list.append(clyfar_extreme)
+
+    # CLYFAR poss_moderate >= 0.3 (probability of moderate ozone)
+    clyfar_moderate = calculate_metrics(df, 'CLYFAR moderate≥0.3', 'poss_moderate', 0.3)
+    metrics_list.append(clyfar_moderate)
 
     # Create figure
     fig, ax = plt.subplots(figsize=(10, 9))
@@ -280,21 +265,21 @@ def main():
     draw_bias_lines(ax)
 
     # Plot data points
-    plot_data_points(ax, seasonal_metrics, all_seasons_metrics)
+    plot_data_points(ax, metrics_list)
 
     # Labels
     ax.set_xlabel('Success Ratio (1 - FAR)', fontsize=12)
     ax.set_ylabel('Probability of Detection (POD)', fontsize=12)
 
     # Title and subtitle
-    fig.suptitle('Performance Diagram: NOAA AQM Exceedance Prediction',
+    fig.suptitle('Performance Diagram: AQM vs CLYFAR (24h Lead Time)',
                  fontsize=14, fontweight='bold', y=0.98)
-    ax.set_title('Uinta Basin Winter O\u2083 > 70 ppb', fontsize=11, pad=10)
+    ax.set_title('Uinta Basin Winter 2022-23 Comparison (O\u2083 > 70 ppb)', fontsize=11, pad=10)
 
     # Grid
     ax.grid(True, alpha=0.3, zorder=0)
 
-    # Corner labels explaining what each corner represents
+    # Corner labels
     corner_style = dict(fontsize=9, ha='center', va='center',
                         bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
                                   edgecolor='gray', alpha=0.9))
@@ -305,14 +290,14 @@ def main():
     ax.text(-0.08, -0.08, 'No Skill',
             transform=ax.transData, **corner_style)
 
-    # Season legend (upper left)
-    ax.legend(loc='upper left', fontsize=9, framealpha=0.9, ncol=2)
+    # Legend
+    ax.legend(loc='upper left', fontsize=9, framealpha=0.9)
 
-    # Adjust layout to make room for metrics box below
-    plt.subplots_adjust(bottom=0.12)
+    # Adjust layout for metrics box
+    plt.subplots_adjust(bottom=0.18)
 
-    # Metrics legend box (below plot)
-    add_metrics_legend(fig, all_seasons_metrics)
+    # Metrics summary box
+    add_metrics_legend(fig, metrics_list)
 
     # Save figure
     OUTPUT_DIR.mkdir(exist_ok=True)
@@ -321,14 +306,11 @@ def main():
     print(f'Saved figure to {output_path}')
 
     # Print summary
-    print(f'\nPerformance Metrics Summary:')
-    print(f'{"Season":<12} {"POD":>8} {"SR":>8} {"CSI":>8} {"Bias":>8}')
-    print('-' * 48)
-    for m in seasonal_metrics:
-        print(f'{m.label:<12} {m.pod:>8.3f} {m.sr:>8.3f} {m.csi:>8.3f} {m.bias:>8.2f}')
-    print('-' * 48)
-    m = all_seasons_metrics
-    print(f'{"All Seasons":<12} {m.pod:>8.3f} {m.sr:>8.3f} {m.csi:>8.3f} {m.bias:>8.2f}')
+    print(f'\nPerformance Metrics Summary (Winter 2022-23):')
+    print(f'{"Model":<16} {"POD":>8} {"FAR":>8} {"CSI":>8} {"Bias":>8}')
+    print('-' * 52)
+    for m in metrics_list:
+        print(f'{m.name:<16} {m.pod:>8.3f} {m.far:>8.3f} {m.csi:>8.3f} {m.frequency_bias:>8.2f}')
 
 
 if __name__ == '__main__':

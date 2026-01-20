@@ -2,13 +2,17 @@
 
 Three validated case studies for the AMS poster, selected using strict multi-station criteria to ensure data quality.
 
+**Context**: All case studies are from winter 2022-23, which was the most active winter in our 6-year study period (151/193 total exceedances, 78%). Despite this being AQM's "best" winter (POD = 39.7%), performance still loses decisively to persistence (POD = 61.7%).
+
 ## Summary
 
 | Case | Date | Station | Obs | AQM | Bias | Validation |
 |------|------|---------|-----|-----|------|------------|
-| **Worst Miss** | 2023-02-04 | UB7ST | 112 ppb | 54 ppb | -58 ppb | All 5 stations exceeded |
+| **Worst Miss**¹ | 2023-02-04 | UB7ST | 112 ppb | 54 ppb | -58 ppb | All 5 stations exceeded |
 | **False Alarm** | 2021-02-01 | UBCSP | 53 ppb | 87 ppb | +35 ppb | No station exceeded |
 | **Best Hit** | 2023-02-08 | QV4 | 76 ppb | 77 ppb | +1 ppb | All 5 stations exceeded |
+
+¹ Selected by largest single-station bias, not highest observed concentration
 
 ## Meteorological Context
 
@@ -30,6 +34,34 @@ Three validated case studies for the AMS poster, selected using strict multi-sta
 
 GFS consistently underestimates snow depth in the Uinta Basin by 35-73%.
 
+### Full Dataset Verification (n=295 days)
+
+The 3 case studies above are validated against the full 6-winter dataset (Dec-Mar 2019-2025):
+
+| Metric | Value |
+|--------|-------|
+| Matched days (snow > 0) | 295 |
+| Mean GFS snow | 5.3 cm |
+| Mean Observed snow | 10.3 cm |
+| Mean Bias (GFS - Obs) | -5.0 cm |
+| RMSE | 10.5 cm |
+| Correlation (r) | 0.687 |
+| Days GFS underestimates | 69.8% |
+
+**By Observed Snow Depth Bin:**
+
+| Obs Snow | Mean Bias | n |
+|----------|-----------|---|
+| 0-5 cm | -0.0 cm | 155 |
+| 5-10 cm | +1.9 cm | 39 |
+| 10-20 cm | -4.5 cm | 29 |
+| 20+ cm | -19.8 cm | 72 |
+
+**Key Finding**: The full dataset confirms GFS systematically underestimates snow depth, with 69.8% of days showing underestimation. The bias is strongly depth-dependent: GFS performs reasonably for shallow snow (0-10 cm) but severely underestimates deep snow events (20+ cm shows -19.8 cm bias). This supports the case study finding that GFS errors are worst during the heavy snow events most critical for winter ozone formation.
+
+![GFS vs Observed Snow Scatter](figures/gfs_snow_scatter.png)
+![GFS Snow Error Distribution](figures/gfs_snow_error_histogram.png)
+
 ## AQM Error Evolution (Feb 2023 Event)
 
 The worst miss and best hit both occurred during the same multi-day event:
@@ -38,17 +70,36 @@ The worst miss and best hit both occurred during the same multi-day event:
 |------|----------|----------|-----------|-------|
 | Feb 3 | 85 ppb | 64 ppb | -20 ppb | Onset |
 | Feb 4 | 102 ppb | 68 ppb | **-35 ppb** | Ramp-up |
-| Feb 5 | 115 ppb | 78 ppb | -36 ppb | Peak |
-| Feb 6 | 108 ppb | 72 ppb | -36 ppb | Peak |
-| Feb 7 | 93 ppb | 76 ppb | -17 ppb | Decay |
+| Feb 5 | 115 ppb | 78 ppb | -37 ppb | Peak |
+| Feb 6 | 99 ppb | 72 ppb | -26 ppb | Peak |
+| Feb 7 | 90 ppb | 76 ppb | -14 ppb | Decay |
 | Feb 8 | 91 ppb | 80 ppb | **-11 ppb** | Decay |
 
 **Key finding: AQM struggles at event onset, improves as event matures.**
+
+## Baseline Comparison: Persistence vs AQM
+
+### All 6 Winters (2019-2025)
+
+| Model | POD | CSI | Notes |
+|-------|-----|-----|-------|
+| **Persistence** | **61.7%** | **44.6%** | Simple "tomorrow = today" |
+| AQM (All winters) | 31.6% | 27.9% | Overall performance |
+| AQM (2022-23 only) | 39.7% | 35.5% | "Best" winter |
+| AQM (Other 5 winters) | 2.4% | 2.0% | **Typical winters** |
+
+**Key finding:** A simple persistence forecast ("tomorrow = today") outperforms AQM across all conditions. Even during the most active winter (2022-23), AQM achieves only 39.7% POD vs persistence's 61.7%.
+
+**Devastating finding:** During 5 typical winters, AQM POD collapsed to 2.4% (caught 1 of 42 events), while persistence maintained ~60% skill.
+
+AQM's only advantage: 13.5% onset detection (persistence cannot predict event onset by definition).
 
 ## Case Study Details
 
 ### Worst Miss: February 4, 2023
 
+- **Selection criterion**: Largest single-station forecast error (-58 ppb at UB7ST)
+- Note: Feb 5 had higher peak observed (124.8 ppb at UBHSP) but smaller station bias (-54 ppb)
 - All 5 stations exceeded 70 ppb threshold (range: 88-112 ppb)
 - Part of multi-day basin-wide event (Feb 3-8)
 - Deep snow cover (12.5") with albedo enhancement
@@ -82,5 +133,6 @@ Initial analysis found isolated spikes at UBHSP (140-168 ppb) that were rejected
 - Likely instrument errors, not real ozone events
 
 Selection criteria to avoid misrepresentation:
-- **Worst miss/Best hit**: Require ALL reporting stations to exceed threshold
+- **Worst miss**: Require ALL stations to exceed threshold; select day with largest single-station bias
+- **Best hit**: Require ALL stations to exceed threshold; select day with smallest bias
 - **False alarm**: Require NO station to exceed threshold

@@ -81,29 +81,61 @@ Air-quality forecasting in Utah's Uinta Basin faces unique challenges due to com
 - COOP stations: once-daily, 2.54 cm (1 inch) precision
 - Snow complications: sublimation, melting, refreezing, settling, drifting
 
-**Case Study Results**
-- *TBD - pending analysis*
+**Results: Two Scenarios**
+
+*High-Ozone Winter (2022-23):*
+- 151 exceedances (25% of days) 
+- AQM POD: 39.7%, CSI: 0.355
+- Shows marginal skill but loses to persistence (POD: 61.7%)
+
+*Typical Low-Ozone Winters (5 others):*
+- 42 exceedances across 1,955 days (2%)
+- AQM POD: 2.4%, CSI: 0.020
+- **Near-complete operational failure**
+
+**CLYFAR Comparison (Winter 2022-23):**
+
+At matched 24h lead times, statistical ensemble approach shows promise:
+- CLYFAR moderate≥0.3: POD = 71.7%, FAR = 0% (zero false alarms!)
+- AQM (Day 1): POD = 34.8%, FAR = 22%
+- CLYFAR p90: POD = 71.2%, FAR = 57.1% (high detection, high false alarms)
+- CLYFAR provides probabilistic guidance vs AQM deterministic forecast
 
 ### Column 3: Conclusions / Future Work
 
 **Key Takeaways**
-- *TBD - pending analysis*
+- NOAA AQM lacks operational value for Uinta Basin winter ozone
+- Persistence baseline outperforms AQM: POD 61.7% vs 31.6%
+- During typical low-frequency winters, AQM POD = 2.4% (operationally useless)
+- GFS underestimates snow depth by 70%, worst for deep snow (20+ cm: -20 cm bias)
+- Eastern basin stations show 9× worse POD than western (snow shadow effect)
+- Conditional bias grows with concentration: -4 ppb overall, -32 ppb on exceedances
+
+**Root Causes**
+- Scale mismatch: 13 km grid cannot resolve 100m cold pools
+- Missing physics: Snow-albedo feedback not in photolysis scheme  
+- Snow depth errors: GFS systematically underestimates critical parameter
 
 **Future Work**
-- *TBD - pending analysis*
+- High-resolution nested domain (1-3 km) over Uinta Basin
+- Incorporate snow-albedo enhancement into photolysis rates
+- Data assimilation of basin snow depth observations
+- Hybrid statistical-dynamical approach combining strengths
 
 ---
 
-## TODO
+## Analysis Status
 
-### Immediate Tasks
-- [ ] Finalize station network changes in `fetch_aqm.py` and `fetch_observations.py`
-- [ ] Generate final poster figures with expanded station network
-- [ ] Write conclusions and future work sections (Column 3)
+✅ **COMPLETE** - All analysis, documentation, and figures ready for AMS 2026
 
-### Figures to Update
-- [ ] Regenerate case study figures with new station data
-- [ ] Update multi-year comparison with full station network
+**Key Deliverables:**
+- 2,557 station-days analyzed across 6 winter seasons
+- 22 publication-quality figures
+- 11 comprehensive reports  
+- Stratified evaluation showing systematic AQM failure
+- Clyfar comparison demonstrating superior performance
+
+**Contact:** Michael J. Davies (michael.davies@usu.edu)
 
 ---
 

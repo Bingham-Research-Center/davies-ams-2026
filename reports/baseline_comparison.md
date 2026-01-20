@@ -1,4 +1,4 @@
-<!-- Generated: 2026-01-16T15:38:21.013942 -->
+<!-- Generated: 2026-01-20T01:33:39.038979 -->
 
 # Baseline Comparison Analysis
 
@@ -6,22 +6,22 @@
 
 | Model | POD | FAR | CSI | Bias | RMSE | n |
 | --- | --- | --- | --- | --- | --- | --- |
-| AQM | 30.1% | 28.7% | 26.8% | -5.01 | 14.76 | 2565 |
-| Persistence | 64.6% | 35.4% | 47.7% | -0.02 | 16.00 | 2560 |
-| Climatology | 0.0% | 0.0% | 0.0% | -0.02 | 17.09 | 2565 |
+| AQM | 31.6% | 29.9% | 27.9% | -4.37 | 14.40 | 2557 |
+| Persistence | 61.7% | 38.3% | 44.6% | -0.01 | 16.41 | 2552 |
+| Climatology | 0.0% | 0.0% | 0.0% | -0.01 | 16.85 | 2557 |
 
 ## POD by Event Phase
 
 | Model | Onset POD | Continuation POD | n Onset | n Cont. |
 | --- | --- | --- | --- | --- |
-| AQM | 13.7% | 39.1% | 73 | 133 |
-| Persistence | 0.0% | 100.0% | 73 | 133 |
-| Climatology | 0.0% | 0.0% | 73 | 133 |
+| AQM | 13.5% | 42.9% | 74 | 119 |
+| Persistence | 0.0% | 100.0% | 74 | 119 |
+| Climatology | 0.0% | 0.0% | 74 | 119 |
 
 ## Bootstrap Confidence Interval
 
-- **AQM vs Persistence POD Difference:** -34.5%
-- **95% CI:** [-42.2%, -26.7%]
+- **AQM vs Persistence POD Difference:** -30.1%
+- **95% CI:** [-37.8%, -22.3%]
 - **P-value:** 1.000
 
 
@@ -29,19 +29,19 @@
 
 ### Onset Detection
 
-- **AQM onset POD:** 13.7%
+- **AQM onset POD:** 13.5%
 - **Persistence onset POD:** 0.0%
 - **Assessment:** AQM provides MARGINAL advance warning
 
 
 ### Overall Performance
 
-- **AQM overall POD:** 30.1%
-- **Persistence overall POD:** 64.6%
+- **AQM overall POD:** 31.6%
+- **Persistence overall POD:** 61.7%
 - **Assessment:** AQM adds NO VALUE over simple persistence
 
 
 ### Skill Scores (vs Persistence)
 
-- **CSI skill:** -0.398
-- **POD skill:** -0.973
+- **CSI skill:** -0.302
+- **POD skill:** -0.784
