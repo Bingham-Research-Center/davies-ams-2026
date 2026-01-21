@@ -16,28 +16,28 @@ Air-quality forecasting in Utah's Uinta Basin faces unique challenges due to com
 ### Column 1: Background / Introduction
 
 **The Uinta Basin Challenge**
-- Utah's Uinta Basin = rare **winter ozone** problem (most U.S. ozone is summer)
-- Three factors create the "perfect storm":
-  1. **Complex terrain** - Basin topography traps pollutants
-  2. **Cold-air pools** - Persistent inversions prevent vertical mixing
-  3. **Snowpack** - Enhances UV via albedo → drives photochemical ozone production
-- **Public health**: Exceedances >70 ppb NAAQS threshold during winter months
+- Utah's Uinta Basin has a rare winter ozone problem (most U.S. ozone happens in summer)
+- Three things come together to cause it:
+  1. **Bowl-shaped terrain** traps pollutants in the basin
+  2. **Cold air gets stuck** at the surface for days, preventing pollution from escaping
+  3. **Snow on the ground** reflects sunlight and speeds up ozone-forming reactions
+- This leads to unhealthy air quality days that exceed the federal 70 ppb limit
 
-**Winter Ozone Formation Mechanism** (Davies et al. 2025)
-1. Heavy snowfall persists under **temperature inversion** for multiple days
-2. **Cold air pools** in Basin, trapping volatile organics + NOx from oil/gas industry
-3. Solar radiation drives **photolysis** but too weak to melt snow
-4. **High surface albedo** maintains feedback loop by reflecting insolation
-5. **Actinic flux** extends path length for photolysis → increases ozone production
-6. Results in unhealthy air quality exceeding **70 ppb NAAQS threshold**
+**How Winter Ozone Forms** (Davies et al. 2025)
+1. Heavy snow covers the basin and a layer of cold air settles in
+2. The cold air acts like a lid, trapping pollution from oil and gas operations
+3. Sunlight hits the snow but isn't strong enough to melt it
+4. Snow reflects sunlight back up, increasing the UV light in the trapped air
+5. This extra UV drives chemical reactions that create ozone
+6. Ozone builds up to unhealthy levels (above 70 ppb federal limit)
 
 > "Snow coverage is paramount in initiating the cold pool and driving ozone generation."
 
 **The Scale Problem**
-- NOAA AQM operates at **13 km** horizontal resolution
-- Cold pools in the Basin are **O(100m)** deep - too shallow to resolve
-- AQM mathematically incapable of resolving these features accurately
-- Same model succeeds for **large-scale events** (wildfires) but fails for **small-scale** (winter ozone)
+- NOAA AQM uses a 13 km grid—each grid cell covers a large area
+- The cold air pools that trap pollution are only about 100 meters deep
+- The model can't "see" features this small
+- AQM works well for large events like wildfires, but struggles with small-scale winter ozone
 
 **Research Question**
 > How well do operational and statistical modeling approaches predict wintertime ozone in the Uinta Basin, and what limits their skill?
@@ -84,37 +84,38 @@ Air-quality forecasting in Utah's Uinta Basin faces unique challenges due to com
 **Results: Two Scenarios**
 
 *High-Ozone Winter (2022-23):*
-- 151 exceedances (25% of days) 
-- AQM POD: 39.7%, CSI: 0.355
-- Shows marginal skill but loses to persistence (POD: 61.7%)
+- 151 bad air days (25% of the winter)
+- AQM predicted 40% of these events correctly
+- But simply using yesterday's ozone did better (62% correct)
 
 *Typical Low-Ozone Winters (5 others):*
-- 42 exceedances across 1,955 days (2%)
-- AQM POD: 2.4%, CSI: 0.020
-- **Near-complete operational failure**
+- Only 42 bad air days across 5 winters (2% of days)
+- AQM predicted only 2.4% of these events
+- The model essentially missed almost everything
 
 **CLYFAR Comparison (Winter 2022-23, n=457 station-days):**
 
-At matched 24h lead times, statistical ensemble approach shows promise:
-- **CLYFAR p90**: POD = 74.8%, FAR = 57.8%, CSI = 0.369 (best CLYFAR variant)
-- **AQM (Day 1)**: POD = 33.3%, FAR = 30.5%, CSI = 0.291
-- **Persistence**: POD = 76.4%, FAR = 21.7%, CSI = 0.631
-- CLYFAR p90 achieves 2.2× higher detection than AQM with 27% better skill (CSI)
+Comparing forecasts at the same 24-hour lead time:
+- **CLYFAR p90**: Detected 75% of events, but 58% of warnings were false alarms
+- **AQM (Day 1)**: Detected 33% of events, with 31% false alarms
+- **Persistence** (yesterday's ozone): Detected 76% of events, 22% false alarms
+
+CLYFAR catches more events but triggers more false alarms. Each approach has trade-offs depending on whether missing events or false warnings is more costly.
 
 ### Column 3: Conclusions / Future Work
 
 **Key Takeaways**
-- NOAA AQM lacks operational value for Uinta Basin winter ozone
-- Persistence baseline outperforms AQM: POD 76.4% vs 33.3% (Winter 2022-23)
-- During typical low-frequency winters, AQM POD = 2.4% (operationally useless)
-- GFS underestimates snow depth by 70%, worst for deep snow (20+ cm: -20 cm bias)
-- Eastern basin stations show 9× worse POD than western (snow shadow effect)
-- Conditional bias grows with concentration: -4 ppb overall, -32 ppb on exceedances
+- AQM struggles to predict winter ozone in the Uinta Basin
+- Simply assuming "tomorrow = today" catches more events than AQM (76% vs 33%)
+- In typical winters with few events, AQM detected only 2.4% of exceedances
+- Weather models underestimate snow depth 70% of the time (off by 20 cm for deep snow)
+- Eastern basin stations are harder to predict than western stations
+- AQM underpredicts more as ozone gets higher (-4 ppb overall, -32 ppb on bad days)
 
-**Root Causes**
-- Scale mismatch: 13 km grid cannot resolve 100m cold pools
-- Missing physics: Snow-albedo feedback not in photolysis scheme  
-- Snow depth errors: GFS systematically underestimates critical parameter
+**Why AQM Struggles Here**
+- The model grid (13 km) is too coarse to see the shallow cold air pools (100 m deep)
+- The model doesn't account for how snow reflects sunlight and speeds up ozone formation
+- The weather model feeding AQM consistently underestimates snow depth
 
 **Future Work**
 - High-resolution nested domain (1-3 km) over Uinta Basin
@@ -130,10 +131,10 @@ At matched 24h lead times, statistical ensemble approach shows promise:
 
 **Key Deliverables:**
 - 2,557 station-days analyzed across 6 winter seasons
-- 22 publication-quality figures
-- 11 comprehensive reports  
-- Stratified evaluation showing systematic AQM failure
-- Clyfar comparison demonstrating superior performance
+- 22 figures for publication
+- 11 detailed reports
+- Analysis grouped by high-ozone vs typical winters
+- Side-by-side comparison of AQM and CLYFAR forecasts
 
 **Contact:** Michael J. Davies (michael.davies@usu.edu)
 
