@@ -239,9 +239,9 @@ CLYFAR treats each as an **analog year scenario**, not equiprobable outcomes. Th
 
 ---
 
-**For AMS Poster**: Emphasize that CLYFAR's 71.7% POD with 0% FAR comes from:
+**For AMS Poster**: Emphasize that CLYFAR p90's 74.8% POD (vs AQM's 33.3%) comes from:
 1. Physics-based fuzzy rules capturing snow-albedo-inversion mechanism
 2. Ensemble preserving diverse scenarios (not averaging them away)
-3. Possibility theory allowing conservative thresholding (moderate≥0.3)
+3. 90th percentile threshold capturing high-end risk scenarios
 
 This is fundamentally different from AQM's deterministic physics-based approach.

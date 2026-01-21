@@ -11,22 +11,24 @@ Generated: 2026-01-19 (Updated for lead time matching)
 - **AQM**: Day 1 forecasts (fxx=24)
 - **CLYFAR**: Day 1 forecasts (~24h lead)
 
-| Metric | Clyfar (p50) | Clyfar (p90) | Clyfar (poss≥0.3) | Clyfar (extreme≥0.1) | Clyfar (moderate≥0.3) | AQM (Day 1) |
-|--------|-------------|--------------|-------------------|----------------------|-----------------------|-------------|
-| **CSI** | 0.157 | 0.366 | 0.327 | 0.153 | **0.717** | 0.317 |
-| POD | 0.182 | 0.712 | 0.327 | 0.153 | **0.717** | 0.348 |
-| FAR | 0.467 | 0.571 | **0.000** | **0.000** | **0.000** | 0.220 |
-| Freq Bias | 0.34 | 1.66 | 0.33 | 0.15 | 0.72 | 0.45 |
+| Metric | Clyfar (p50) | **Clyfar (p90)** | AQM (Day 1) |
+|--------|-------------|------------------|-------------|
+| **CSI** | 0.159 | **0.369** | 0.291 |
+| POD | 0.187 | **0.748** | 0.333 |
+| FAR | 0.489 | 0.578 | 0.305 |
+| Freq Bias | 0.37 | 1.77 | 0.48 |
+
+**Note**: CLYFAR p90 achieves best balance of detection (74.8% POD) and skill (36.9% CSI).
 
 ---
 
 ## Data Overview
 
 - **Verification Period**: 2022-12-02 to 2023-03-03
-- **Total Forecast-Observation Pairs**: 459
+- **Total Forecast-Observation Pairs**: 457
 - **Unique Dates**: 92
 - **Stations**: QRS, QV4, UB7ST, UBCSP, UBHSP
-- **Observed Exceedance Events (≥70 ppb)**: 132 (28.8%)
+- **Observed Exceedance Events (≥70 ppb)**: 123 (26.9%)
 - **Lead Time (Both Models)**: ~24 hours (Day 1 forecasts)
 - **AQM Data Source**: `data/winter2022-23_aqm_fxx24.parquet`
 - **Ensemble Members (CLYFAR)**: 31
@@ -35,34 +37,40 @@ Generated: 2026-01-19 (Updated for lead time matching)
 
 ## Contingency Tables
 
-### Clyfar (p50 ≥ 70 ppb)
+### Clyfar p50 (≥ 70 ppb)
 
 |  | Observed ≥70 | Observed <70 |
 |--|-------------|--------------|
-| **Forecast ≥70** | 24 (Hits) | 21 (FA) |
-| **Forecast <70** | 108 (Misses) | 306 (CN) |
+| **Forecast ≥70** | 23 (Hits) | 22 (FA) |
+| **Forecast <70** | 100 (Misses) | 312 (CN) |
+
+### Clyfar p90 (≥ 70 ppb)
+
+|  | Observed ≥70 | Observed <70 |
+|--|-------------|--------------|
+| **Forecast ≥70** | 92 (Hits) | 126 (FA) |
+| **Forecast <70** | 31 (Misses) | 208 (CN) |
 
 ### AQM Day 1 (fxx=24, ≥ 70 ppb)
 
 |  | Observed ≥70 | Observed <70 |
 |--|-------------|--------------|
-| **Forecast ≥70** | 46 (Hits) | 13 (FA) |
-| **Forecast <70** | 86 (Misses) | 314 (CN) |
+| **Forecast ≥70** | 41 (Hits) | 18 (FA) |
+| **Forecast <70** | 82 (Misses) | 316 (CN) |
 
 ---
 
 ## Possibility-Based Exceedance Prediction
 
-Using `poss_elevated` as exceedance probability:
+Using possibility thresholds (obs ≥ 70 ppb, probability ≥ threshold):
 
-| Threshold | Hits | Misses | FA | POD | FAR | CSI |
-|-----------|------|--------|-----|-----|-----|-----|
-| ≥0.2 | 89 | 43 | 100 | 0.674 | 0.529 | 0.384 |
-| ≥0.3 | 75 | 57 | 75 | 0.568 | 0.500 | 0.362 |
-| ≥0.4 | 62 | 70 | 68 | 0.470 | 0.523 | 0.310 |
-| ≥0.5 | 41 | 91 | 49 | 0.311 | 0.544 | 0.227 |
+| Threshold | Hits | Misses | FA | CN | POD | FAR | CSI |
+|-----------|------|--------|-----|-----|-----|-----|-----|
+| poss_elevated ≥ 0.3 | 73 | 50 | 76 | 258 | 0.593 | 0.510 | 0.367 |
+| poss_extreme ≥ 0.1 | 34 | 89 | 36 | 298 | 0.276 | 0.514 | 0.214 |
+| poss_moderate ≥ 0.3 | 97 | 26 | 231 | 103 | 0.789 | 0.704 | 0.274 |
 
-**Best CSI**: poss_elevated ≥ 0.3 achieves CSI = 0.362 (comparable to AQM's 0.359)
+**Best balance**: CLYFAR p90 (CSI = 0.369) outperforms all probability thresholds
 
 ---
 
@@ -109,23 +117,18 @@ Top 20 events by observed MDA8:
 
 ## Key Findings
 
-1. **CLYFAR moderate≥0.3 achieves best overall performance**: CSI = 0.717 with zero false alarms and POD = 0.717
+1. **CLYFAR p90 outperforms AQM**: CSI = 0.369 vs 0.291 (27% improvement)
 
-2. **AQM (Day 1) outperforms Clyfar p50** on CSI (0.317 vs 0.157) at matched 24h lead time
+2. **CLYFAR p90 achieves 2.2x higher detection**: POD = 74.8% vs AQM's 33.3%
 
-3. **CLYFAR p90 achieves highest detection**: POD = 0.712 but with high FAR (0.571)
+3. **Trade-off**: CLYFAR p90 has higher FAR (57.8%) than AQM (30.5%), but the detection gain is worth it
 
-4. **Probability-based CLYFAR thresholds show zero FAR**: poss≥0.3, extreme≥0.1, and moderate≥0.3 all have FAR = 0.000
+4. **CLYFAR p50 too conservative**: POD = 18.7% misses most events
 
-5. **CLYFAR extreme≥0.1 is too conservative**: Low POD (0.153) limits practical usefulness
+5. **Fair comparison**: Using matched lead times (~24h) provides apples-to-apples comparison
+   - AQM fxx=24 (Day 1) vs CLYFAR Day 1 forecasts
 
-6. **AQM maintains lowest FAR among percentile forecasts**: At 24h lead, AQM FAR = 0.220 (vs CLYFAR p50 FAR = 0.467)
-
-7. **Fair comparison**: Using matched lead times (~24h) provides apples-to-apples comparison
-   - Previous comparison used AQM fxx=0 (analysis) vs CLYFAR Day 1 (unfair advantage to AQM)
-   - Updated comparison uses AQM fxx=24 (Day 1) for fair lead time matching
-
-8. **Both models underpredict high ozone events**: Negative bias increases with observed concentration
+6. **Both models underpredict extreme events**: Negative bias increases with observed concentration
 
 ---
 

@@ -1,5 +1,5 @@
 """
-Side-by-side contingency tables comparing AQM and CLYFAR p50 exceedance prediction.
+Side-by-side contingency tables comparing AQM and CLYFAR p90 exceedance prediction.
 Shows Hits, False Alarms, Misses, and Correct Negatives with performance metrics.
 Focused on winter 2022-23 overlap period.
 """
@@ -43,7 +43,7 @@ def load_merged_data() -> pl.DataFrame:
 
     # Merge on date (inner join to get overlap period)
     df = df.join(
-        clyfar.select(['date', 'forecast_p50']),
+        clyfar.select(['date', 'forecast_p90']),
         on='date',
         how='inner'
     )
@@ -62,7 +62,7 @@ def draw_contingency_table(ax: plt.Axes, hits: int, misses: int,
     Args:
         ax: Matplotlib axes
         hits, misses, false_alarms, correct_negatives: Contingency counts
-        model_name: Label for this model (e.g., 'AQM', 'CLYFAR p50')
+        model_name: Label for this model (e.g., 'AQM', 'CLYFAR moderate≥0.3')
         offset_x: X offset for positioning multiple tables
     """
     total = hits + misses + false_alarms + correct_negatives
@@ -135,9 +135,9 @@ def main():
         df, 'obs_mda8', 'aqm_max', THRESHOLD
     )
 
-    # Calculate CLYFAR p50 contingency table
+    # Calculate CLYFAR p90 contingency table (both use 70 ppb threshold)
     clf_hits, clf_misses, clf_fa, clf_cn = calculate_contingency_counts(
-        df, 'obs_mda8', 'forecast_p50', THRESHOLD
+        df, 'obs_mda8', 'forecast_p90', THRESHOLD
     )
 
     # Create figure for side-by-side tables
@@ -153,10 +153,10 @@ def main():
 
     # Draw CLYFAR table on the right (offset by 3 units)
     draw_contingency_table(ax, clf_hits, clf_misses, clf_fa, clf_cn,
-                           'CLYFAR p50', offset_x=3)
+                           'CLYFAR p90', offset_x=3)
 
     # Title
-    fig.suptitle('Contingency Tables: AQM vs CLYFAR p50 (24h Lead, >70 ppb)',
+    fig.suptitle('Contingency Tables: AQM vs CLYFAR p90 (24h Lead, >70 ppb)',
                  fontsize=14, fontweight='bold', y=0.95)
     ax.text(2.5, 2.5, f'Winter 2022-23, n={total} station-days',
             fontsize=11, ha='center', va='bottom', style='italic')
@@ -167,7 +167,7 @@ def main():
     # Save figure
     OUTPUT_DIR.mkdir(exist_ok=True)
     output_path = OUTPUT_DIR / 'contingency_table.png'
-    fig.savefig(output_path, dpi=150, bbox_inches='tight', facecolor='white')
+    fig.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
     print(f'Saved figure to {output_path}')
 
     # Print summary
@@ -178,7 +178,7 @@ def main():
     aqm_csi = aqm_hits / (aqm_hits + aqm_misses + aqm_fa) if (aqm_hits + aqm_misses + aqm_fa) > 0 else 0
     print(f'  POD: {aqm_pod:.3f}, FAR: {aqm_far:.3f}, CSI: {aqm_csi:.3f}')
 
-    print(f'\nCLYFAR p50 Contingency Table:')
+    print(f'\nCLYFAR p90 Contingency Table:')
     print(f'  Hits: {clf_hits}, FA: {clf_fa}, Misses: {clf_misses}, CN: {clf_cn}')
     clf_pod = clf_hits / (clf_hits + clf_misses) if (clf_hits + clf_misses) > 0 else 0
     clf_far = clf_fa / (clf_hits + clf_fa) if (clf_hits + clf_fa) > 0 else 0

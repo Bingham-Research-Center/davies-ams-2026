@@ -127,12 +127,12 @@ for bias in [0.5, 1.0, 2.0]:
     sr_line = pod_line / bias
     ax.plot(sr_line[sr_line <= 1], pod_line[sr_line <= 1], 'k--', alpha=0.3)
 
-# Plot models
+# Plot models (SR = 1 - FAR, POD)
 models = {
-    'Clyfar p50': (0.533, 0.182),      # (SR, POD)
-    'Clyfar p90': (0.429, 0.712),
-    'Clyfar poss≥0.3': (0.500, 0.568),
-    'AQM': (0.836, 0.386),
+    'Clyfar p50': (0.511, 0.187),      # (SR, POD)
+    'Clyfar p90': (0.422, 0.748),
+    'Clyfar poss≥0.3': (0.490, 0.593),
+    'AQM': (0.695, 0.333),
 }
 
 colors = {'Clyfar p50': 'blue', 'Clyfar p90': 'lightblue',

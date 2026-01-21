@@ -62,9 +62,9 @@ Even during the active winter:
 
 ### 6. CLYFAR Alternative Shows Promise (2022-23 only)
 At matched 24h lead times:
-- CLYFAR moderate≥0.3: POD = 71.7%, FAR = 0%, CSI = 0.717
-- AQM Day 1: POD = 34.8%, FAR = 22%, CSI = 0.317
-- CLYFAR achieves **2× detection rate** with **zero false alarms**
+- CLYFAR p90: POD = 74.8%, FAR = 57.8%, CSI = 0.369
+- AQM Day 1: POD = 33.3%, FAR = 30.5%, CSI = 0.291
+- CLYFAR achieves **2.2× higher detection rate** and **27% better CSI**
 
 Statistical ensemble approach outperforms operational NWP for this rare phenomenon.
 

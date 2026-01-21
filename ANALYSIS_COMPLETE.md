@@ -54,12 +54,12 @@
 2. **61.7%** - Persistence POD (beats AQM decisively)
 3. **78%** - Fraction of events in one winter (shows rarity problem)
 
-### CLYFAR vs AQM (Winter 2022-23, matched 24h lead)
-- **CLYFAR moderate≥0.3**: POD = 71.7%, FAR = 0%, CSI = 0.717
-- **AQM (Day 1)**: POD = 34.8%, FAR = 22%, CSI = 0.317
-- **CLYFAR p90**: POD = 71.2%, FAR = 57.1%, CSI = 0.366
+### CLYFAR vs AQM (Winter 2022-23, n=457 station-days, matched 24h lead)
+- **CLYFAR p90**: POD = 74.8%, FAR = 57.8%, CSI = 0.369 (best CLYFAR variant)
+- **AQM (Day 1)**: POD = 33.3%, FAR = 30.5%, CSI = 0.291
+- **Persistence**: POD = 76.4%, FAR = 21.7%, CSI = 0.631
 
-**Key insight**: Statistical ensemble approach (CLYFAR) achieves 2× AQM detection rate with zero false alarms when tuned conservatively (moderate threshold).
+**Key insight**: CLYFAR p90 achieves 2.2× higher detection than AQM with 27% better skill (CSI).
 
 ---
 
@@ -154,7 +154,7 @@ data/winter[YYYY-YY]_*.parquet             - Individual winter data
 - High-frequency (2022-23): POD = 39.7%
 - **Typical winters: POD = 2.4%** ← Highlight this
 - Persistence: POD = 61.7%
-- CLYFAR moderate≥0.3: POD = 71.7% (statistical approach)
+- CLYFAR p90: POD = 74.8% (statistical approach)
 
 **Panel 5: Root Causes**
 - Figure: `gfs_snow_scatter.png` + `station_performance_map.png`
@@ -165,11 +165,11 @@ data/winter[YYYY-YY]_*.parquet             - Individual winter data
 **Panel 6: Conclusions & Alternatives**
 - AQM operationally useless in typical conditions
 - Persistence forecast superior to AQM
-- CLYFAR statistical ensemble shows promise (71.7% POD, 0% FAR)
+- CLYFAR p90 shows promise (74.8% POD, 57.8% FAR, CSI = 0.369)
 - Recommendations: hybrid approach, nested domain, snow assimilation
 
 ### Elevator Pitch (30 seconds)
-> "We evaluated NOAA's Air Quality Model for winter ozone in Utah's Uinta Basin across six winters. While one active year showed marginal skill (40% detection), five typical years revealed catastrophic failure (2% detection). Simple persistence forecasts beat AQM by 2:1. Our statistical ensemble system (CLYFAR) achieved 72% detection with zero false alarms. Root causes: 13 km grid can't resolve 100-meter cold pools, missing snow-albedo physics, and systematic GFS snow underestimation. Results suggest hybrid statistical-dynamical approaches may outperform traditional NWP for this rare, small-scale phenomenon."
+> "We evaluated NOAA's Air Quality Model for winter ozone in Utah's Uinta Basin across six winters. While one active year showed marginal skill (40% detection), five typical years revealed catastrophic failure (2% detection). Simple persistence forecasts beat AQM by 2:1. Our statistical ensemble system (CLYFAR p90) achieved 75% detection—2.2× better than AQM. Root causes: 13 km grid can't resolve 100-meter cold pools, missing snow-albedo physics, and systematic GFS snow underestimation (70% of days, -20 cm for deep snow). Results suggest hybrid statistical-dynamical approaches may outperform traditional NWP for this rare, small-scale phenomenon."
 
 ---
 

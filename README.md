@@ -93,19 +93,19 @@ Air-quality forecasting in Utah's Uinta Basin faces unique challenges due to com
 - AQM POD: 2.4%, CSI: 0.020
 - **Near-complete operational failure**
 
-**CLYFAR Comparison (Winter 2022-23):**
+**CLYFAR Comparison (Winter 2022-23, n=457 station-days):**
 
 At matched 24h lead times, statistical ensemble approach shows promise:
-- CLYFAR moderate≥0.3: POD = 71.7%, FAR = 0% (zero false alarms!)
-- AQM (Day 1): POD = 34.8%, FAR = 22%
-- CLYFAR p90: POD = 71.2%, FAR = 57.1% (high detection, high false alarms)
-- CLYFAR provides probabilistic guidance vs AQM deterministic forecast
+- **CLYFAR p90**: POD = 74.8%, FAR = 57.8%, CSI = 0.369 (best CLYFAR variant)
+- **AQM (Day 1)**: POD = 33.3%, FAR = 30.5%, CSI = 0.291
+- **Persistence**: POD = 76.4%, FAR = 21.7%, CSI = 0.631
+- CLYFAR p90 achieves 2.2× higher detection than AQM with 27% better skill (CSI)
 
 ### Column 3: Conclusions / Future Work
 
 **Key Takeaways**
 - NOAA AQM lacks operational value for Uinta Basin winter ozone
-- Persistence baseline outperforms AQM: POD 61.7% vs 31.6%
+- Persistence baseline outperforms AQM: POD 76.4% vs 33.3% (Winter 2022-23)
 - During typical low-frequency winters, AQM POD = 2.4% (operationally useless)
 - GFS underestimates snow depth by 70%, worst for deep snow (20+ cm: -20 cm bias)
 - Eastern basin stations show 9× worse POD than western (snow shadow effect)
@@ -567,6 +567,6 @@ RAD_STIDS = "UBCSP,UBRVT,UBHSP"  # Full radiation budget
 ## References
 
 - Davies, M.J.; Lawson, J.R.; O'Neil, T.; Lyman, S.N.; Zager, K.; Coxson, T.D. "Uinta Basin Snow Shadow: Impact of Snow-Depth Variation on Winter Ozone Formation." *Air* 2025, 3(3), 22. [DOI: 10.3390/air3030022](https://doi.org/10.3390/air3030022)
+- Blaylock, B.K. (2024). Herbie: Retrieve Numerical Weather Prediction Model Data [Computer software]. [DOI: 10.5281/zenodo.4567540](https://doi.org/10.5281/zenodo.4567540)
+- Blaylock, B.K. (2024). SynopticPy: Synoptic API for Python [Computer software]. [GitHub](https://github.com/blaylockbk/SynopticPy)
 - [NOAA NAQFC on AWS](https://registry.opendata.aws/noaa-nws-naqfc-pds/)
-- [Herbie Documentation](https://herbie.readthedocs.io/)
-- [SynopticPy Documentation](https://synopticpy.readthedocs.io/)

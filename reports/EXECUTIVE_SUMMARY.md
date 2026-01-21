@@ -97,12 +97,11 @@
 
 | Model | POD | FAR | CSI | Lead Time |
 |-------|-----|-----|-----|-----------|
-| AQM (Day 1) | 34.8% | 22.0% | 0.317 | 24h |
-| CLYFAR p50 | 18.2% | 46.7% | 0.157 | 24h |
-| CLYFAR p90 | 71.2% | 57.1% | 0.366 | 24h |
-| **CLYFAR moderate≥0.3** | **71.7%** | **0.0%** | **0.717** | 24h |
+| AQM (Day 1) | 33.3% | 30.5% | 0.291 | 24h |
+| CLYFAR p50 | 18.7% | 48.9% | 0.159 | 24h |
+| **CLYFAR p90** | **74.8%** | 57.8% | **0.369** | 24h |
 
-**At matched lead times**, CLYFAR moderate threshold outperforms both AQM and CLYFAR p50/p90.
+**At matched lead times**, CLYFAR p90 outperforms AQM with 2.2× higher POD and 27% better CSI.
 
 ---
 

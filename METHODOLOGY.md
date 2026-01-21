@@ -332,24 +332,25 @@ Each script addresses a specific hypothesis or evaluation dimension.
 
 ## CLYFAR Comparison Key Findings
 
-A detailed comparison of AQM vs CLYFAR hindcasts for winter 2022-23 is documented in `reports/clyfar_vs_aqm_report.md`. Summary metrics for the overlap period (459 station-day pairs), using **matched 24h lead times**:
+A detailed comparison of AQM vs CLYFAR hindcasts for winter 2022-23 is documented in `reports/clyfar_vs_aqm_report.md`. Summary metrics for the overlap period (n=457 station-days, 123 exceedances), using **matched 24h lead times**:
 
 | Model | CSI | POD | FAR | Bias |
 |-------|-----|-----|-----|------|
-| **AQM (Day 1)** | 0.317 | 0.348 | 0.220 | 0.45 |
-| **CLYFAR p50** | 0.157 | 0.182 | 0.467 | 0.34 |
-| **CLYFAR p90** | 0.366 | 0.712 | 0.571 | 1.66 |
-| **CLYFAR poss≥0.3** | 0.327 | 0.327 | 0.000 | 0.33 |
-| **CLYFAR extreme≥0.1** | 0.153 | 0.153 | 0.000 | 0.15 |
-| **CLYFAR moderate≥0.3** | 0.717 | 0.717 | 0.000 | 0.72 |
+| **AQM (Day 1)** | 0.291 | 0.333 | 0.305 | 0.48 |
+| **CLYFAR p50** | 0.159 | 0.187 | 0.489 | 0.37 |
+| **CLYFAR p90** | 0.369 | 0.748 | 0.578 | 1.77 |
+| **CLYFAR poss≥0.3** | 0.367 | 0.593 | 0.510 | 1.21 |
+| **CLYFAR extreme≥0.1** | 0.214 | 0.276 | 0.514 | 0.57 |
+| **CLYFAR moderate≥0.3** | 0.274 | 0.789 | 0.704 | 2.67 |
+| **Persistence** | 0.631 | 0.764 | 0.217 | 0.98 |
 
 **Key Insights**:
-- At matched 24h lead times, AQM (Day 1) still outperforms CLYFAR p50 on CSI (0.317 vs 0.157)
-- CLYFAR p90 achieves highest POD (0.712) but with high FAR (0.571)
-- CLYFAR p50 is too conservative, missing most events (POD = 0.182)
-- AQM and CLYFAR poss≥0.3 show comparable overall skill (CSI ~0.32)
-- **CLYFAR moderate≥0.3 achieves best CSI (0.717)** with zero false alarms and high POD (0.717)
-- CLYFAR extreme≥0.1 is very conservative with low POD (0.153) but zero FAR
+- **CLYFAR p90 is the best CLYFAR variant** (CSI = 0.369, POD = 74.8%)
+- CLYFAR p90 achieves 2.2× higher detection than AQM (74.8% vs 33.3% POD)
+- CLYFAR p90 has 27% better skill than AQM (CSI 0.369 vs 0.291)
+- CLYFAR p50 is too conservative, missing most events (POD = 18.7%)
+- All CLYFAR probability thresholds have ~50-70% FAR (trade-off for higher detection)
+- Persistence baseline outperforms all models on CSI (0.631)
 
 ---
 

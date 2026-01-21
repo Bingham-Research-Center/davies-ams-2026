@@ -74,7 +74,7 @@ def load_day_data(target_date: date) -> dict:
 
 
 def plot_comparison_feb5_vs_feb7() -> None:
-    """Create side-by-side comparison of Feb 5 (miss) vs Feb 7 (hit)."""
+    """Create side-by-side comparison of Feb 5 (peak) vs Feb 7 (mature event)."""
     OUTPUT_DIR.mkdir(exist_ok=True)
 
     # Load data for both days
@@ -86,11 +86,11 @@ def plot_comparison_feb5_vs_feb7() -> None:
     # Station positions
     stations = CASE_STATIONS
     x = np.arange(len(stations))
-    bar_width = 0.22
+    bar_width = 0.20
 
     for ax, day_data, day_label, result_color, result_text in [
-        (axes[0], feb5_data, 'Feb 5, 2023', '#e74c3c', 'MISS'),
-        (axes[1], feb7_data, 'Feb 7, 2023', '#27ae60', 'HIT'),
+        (axes[0], feb5_data, 'Feb 5, 2023', '#e74c3c', 'PEAK EVENT'),
+        (axes[1], feb7_data, 'Feb 7, 2023', '#27ae60', 'MATURE EVENT'),
     ]:
         # Get observed values
         obs_vals = []
@@ -112,85 +112,100 @@ def plot_comparison_feb5_vs_feb7() -> None:
 
         # Plot bars
         bars_obs = ax.bar(x - bar_width * 1.5, obs_vals, bar_width, label='Observed',
-                          color='#3498db', edgecolor='black', linewidth=1)
+                          color='#3498db', edgecolor='black', linewidth=1.5)
         bars_aqm = ax.bar(x - bar_width * 0.5, aqm_vals, bar_width, label='AQM Day 1',
-                          color='#95a5a6', edgecolor='black', linewidth=1)
+                          color='#95a5a6', edgecolor='black', linewidth=1.5)
         bars_p50 = ax.bar(x + bar_width * 0.5, [clf_p50] * len(stations), bar_width,
-                          label='CLYFAR p50', color='#f39c12', edgecolor='black', linewidth=1)
+                          label='CLYFAR p50', color='#f39c12', edgecolor='black', linewidth=1.5)
         bars_p90 = ax.bar(x + bar_width * 1.5, [clf_p90] * len(stations), bar_width,
-                          label='CLYFAR p90', color='#d35400', edgecolor='black', linewidth=1)
+                          label='CLYFAR p90', color='#d35400', edgecolor='black', linewidth=1.5)
 
         # Add value labels on bars
         for bar in bars_obs:
             height = bar.get_height()
             ax.annotate(f'{height:.0f}', xy=(bar.get_x() + bar.get_width() / 2, height),
                         xytext=(0, 3), textcoords='offset points', ha='center', va='bottom',
-                        fontsize=9, fontweight='bold')
+                        fontsize=10, fontweight='bold')
 
         for bar in bars_aqm:
             height = bar.get_height()
             ax.annotate(f'{height:.0f}', xy=(bar.get_x() + bar.get_width() / 2, height),
                         xytext=(0, 3), textcoords='offset points', ha='center', va='bottom',
-                        fontsize=9)
+                        fontsize=10)
 
         # Add CLYFAR value labels (once, in the middle)
         ax.annotate(f'{clf_p50:.0f}', xy=(1, clf_p50), xytext=(0, 3),
-                    textcoords='offset points', ha='center', va='bottom', fontsize=9)
+                    textcoords='offset points', ha='center', va='bottom', fontsize=10)
         ax.annotate(f'{clf_p90:.0f}', xy=(1.2, clf_p90), xytext=(0, 3),
-                    textcoords='offset points', ha='center', va='bottom', fontsize=9)
+                    textcoords='offset points', ha='center', va='bottom', fontsize=10)
 
-        # Threshold line
-        ax.axhline(THRESHOLD, color='red', linestyle='--', linewidth=2, alpha=0.7)
+        # Threshold line - BOLD
+        ax.axhline(THRESHOLD, color='red', linestyle='--', linewidth=3.5, alpha=0.9,
+                   label='70 ppb NAAQS', zorder=3)
 
         # Station labels
         ax.set_xticks(x)
-        ax.set_xticklabels([STATION_NAMES[s] for s in stations], fontsize=11)
+        ax.set_xticklabels([STATION_NAMES[s] for s in stations], fontsize=13, fontweight='bold')
 
         # Title and result box
-        ax.set_title(day_label, fontsize=13, fontweight='bold')
-        ax.text(0.5, 0.95, result_text, transform=ax.transAxes, fontsize=16,
+        ax.set_title(day_label, fontsize=16, fontweight='bold')
+        ax.text(0.5, 0.95, result_text, transform=ax.transAxes, fontsize=18,
                 fontweight='bold', ha='center', va='top', color='white',
-                bbox=dict(boxstyle='round,pad=0.4', facecolor=result_color, edgecolor='black'))
+                bbox=dict(boxstyle='round,pad=0.6', facecolor=result_color,
+                          edgecolor='black', linewidth=2))
 
-        # poss_elevated annotation
-        ax.text(0.5, 0.85, f'poss_elevated = {poss_elev:.2f}', transform=ax.transAxes,
-                fontsize=11, ha='center', va='top', style='italic',
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='gray', alpha=0.9))
+        # CLYFAR confidence annotation
+        ax.text(0.5, 0.84, f'CLYFAR confidence: {poss_elev:.2f}', transform=ax.transAxes,
+                fontsize=12, ha='center', va='top', style='italic', fontweight='bold',
+                bbox=dict(boxstyle='round,pad=0.4', facecolor='lightyellow',
+                          edgecolor='orange', alpha=0.95, linewidth=2))
 
         # Calculate and show mean error
         mean_obs = np.mean(obs_vals)
+        mean_error_aqm = np.mean(aqm_vals) - mean_obs
         mean_error_p50 = clf_p50 - mean_obs
         mean_error_p90 = clf_p90 - mean_obs
-        mean_error_aqm = np.mean(aqm_vals) - mean_obs
 
-        error_text = (f'Mean errors:\n'
-                      f'  CLYFAR p50: {mean_error_p50:+.1f} ppb\n'
-                      f'  CLYFAR p90: {mean_error_p90:+.1f} ppb\n'
-                      f'  AQM: {mean_error_aqm:+.1f} ppb')
-        ax.text(0.02, 0.02, error_text, transform=ax.transAxes, fontsize=9,
+        error_text = (f'Mean Errors vs Obs:\n'
+                      f'  AQM:        {mean_error_aqm:+6.1f} ppb\n'
+                      f'  CLYFAR p50: {mean_error_p50:+6.1f} ppb\n'
+                      f'  CLYFAR p90: {mean_error_p90:+6.1f} ppb')
+        ax.text(0.02, 0.02, error_text, transform=ax.transAxes, fontsize=10,
                 va='bottom', ha='left', fontfamily='monospace',
-                bbox=dict(boxstyle='round,pad=0.4', facecolor='lightyellow', edgecolor='gray', alpha=0.9))
+                bbox=dict(boxstyle='round,pad=0.5', facecolor='lightyellow',
+                          edgecolor='gray', alpha=0.95, linewidth=1.5))
 
         # Grid
         ax.grid(True, axis='y', alpha=0.3, zorder=0)
         ax.set_axisbelow(True)
 
+    # Add "Highest ozone" annotation on Feb 5 panel
+    axes[0].text(0.98, 0.65, 'Highest ozone\nin 6-year\ndataset',
+                 transform=axes[0].transAxes, fontsize=11, ha='right', va='top',
+                 bbox=dict(boxstyle='round,pad=0.5', facecolor='#ffcccc',
+                           edgecolor='red', linewidth=2, alpha=0.9))
+
     # Shared y-axis label
-    axes[0].set_ylabel('MDA8 Ozone (ppb)', fontsize=12)
+    axes[0].set_ylabel('MDA8 Ozone (ppb)', fontsize=14, fontweight='bold')
 
     # Legend (only on first subplot)
-    axes[0].legend(loc='upper right', fontsize=9)
+    axes[0].legend(loc='upper right', fontsize=11, framealpha=0.95, edgecolor='black')
 
-    # Shared title
-    fig.suptitle('Case Study: Feb 5 (Extreme Underprediction) vs Feb 7 (CLYFAR Success)',
-                 fontsize=14, fontweight='bold', y=0.98)
+    # Main title - reflects the real story
+    fig.suptitle('Event Evolution: Peak Magnitude (Feb 5) vs Mature Phase (Feb 7)',
+                 fontsize=17, fontweight='bold', y=0.98)
+
+    # Subtitle
+    fig.text(0.5, 0.93,
+             'Extreme peak: all models underestimate | Later in event: models converge to observations',
+             ha='center', fontsize=11, style='italic', color='#333')
 
     plt.tight_layout()
-    plt.subplots_adjust(top=0.90)
+    plt.subplots_adjust(top=0.88)
 
     # Save figure
     output_path = OUTPUT_DIR / 'case_study_feb5_vs_feb7.png'
-    fig.savefig(output_path, dpi=150, bbox_inches='tight', facecolor='white')
+    fig.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
     print(f'Saved figure to {output_path}')
     plt.close(fig)
 
